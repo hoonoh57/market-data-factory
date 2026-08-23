@@ -1,11 +1,14 @@
 import 'dotenv/config';
 import mysql from 'mysql2/promise';
 
+const DEFAULT_HOST = '127.0.0.1';
+const DEFAULT_PORT = 3306;
+const DEFAULT_DATABASE = 'market_data';
+
 export function mysqlUrl(env = process.env) {
   const value = String(env.MYSQL_URL ?? '').trim();
-  if (!value) {
-    throw new Error('MYSQL_URL is required. Define it in the local .env file.');
-  }
+  if (!value) return null;
+
   let parsed;
   try {
     parsed = new URL(value);
@@ -20,9 +23,28 @@ export function mysqlUrl(env = process.env) {
   return value;
 }
 
+export function mysqlConfig(env = process.env) {
+  const uri = mysqlUrl(env);
+  if (uri) return { uri };
+
+  const host = String(env.MYSQL_HOST ?? DEFAULT_HOST).trim() || DEFAULT_HOST;
+  const port = Number(env.MYSQL_PORT ?? DEFAULT_PORT);
+  const user = String(env.MYSQL_USER ?? '').trim();
+  const password = String(env.MYSQL_PASSWORD ?? '');
+  const database = String(env.MYSQL_DATABASE ?? DEFAULT_DATABASE).trim() || DEFAULT_DATABASE;
+
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error('MYSQL_PORT must be an integer between 1 and 65535.');
+  }
+  if (!user) throw new Error('MYSQL_USER is required when MYSQL_URL is not set.');
+  if (!password) throw new Error('MYSQL_PASSWORD is required when MYSQL_URL is not set.');
+
+  return { host, port, user, password, database };
+}
+
 export function createMySqlPool({ env = process.env, overrides = {} } = {}) {
   return mysql.createPool({
-    uri: mysqlUrl(env),
+    ...mysqlConfig(env),
     waitForConnections: true,
     connectionLimit: 10,
     maxIdle: 10,
