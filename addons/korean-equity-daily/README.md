@@ -29,6 +29,18 @@ Health view: `korean_equity_daily_health`
 
 Apply `schema.sql` before importing.
 
+## Verified current coverage
+
+User-local MySQL migration and health verification on 2026-08-24 established:
+
+- status: `ACTIVE`
+- instruments: 2,599
+- rows: 3,299,454
+- trading-date range: 2021-01-04 through 2026-08-21
+- initial migration: 3,299,454 inserted / 0 updated
+
+Machine-readable evidence is in `VERIFIED_RESULTS.json`.
+
 ## Normal access
 
 Use `access.sql` as canonical SQL examples. Consumers should depend on this table contract or a stable gateway, not on CYBOS, collector internals, or CSV paths.
@@ -53,4 +65,3 @@ Removing this Add-on removes its schema/collector/import/access contract only. I
 
 - historical delisted/unlisted universe coverage is not yet proven
 - corporate-action semantics beyond recovered `adjusted=true` provider setting are not independently certified
-- current archive-wide coverage/quality must be measured during the first migration
