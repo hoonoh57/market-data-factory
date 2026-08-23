@@ -1,0 +1,10 @@
+{
+  "dataset": "daily",
+  "python32": "E:\\Python310-32\\python.exe",
+  "outputDir": ".runtime/cybos/daily",
+  "dateFrom": "2021-01-01",
+  "dateTo": "today",
+  "exchange": "A",
+  "adjusted": true,
+  "maxAttempts": 3
+}
