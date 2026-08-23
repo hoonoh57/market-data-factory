@@ -1,0 +1,30 @@
+{
+  "schema": "DataAddonVerifiedResults@1.0.0",
+  "datasetId": "korean-equity-daily",
+  "status": "PASS",
+  "verifiedAtKst": "2026-08-24T08:47:00+09:00",
+  "evidenceType": "USER_LOCAL_MYSQL_MIGRATION_AND_HEALTH_CHECK",
+  "schemaApply": {
+    "status": "PASS",
+    "command": "npm run data:daily:schema"
+  },
+  "migration": {
+    "status": "PASS",
+    "source": "legacy CYBOS daily archive",
+    "files": 2599,
+    "rows": 3299454,
+    "inserted": 3299454,
+    "updated": 0
+  },
+  "health": {
+    "status": "PASS",
+    "rowCount": 3299454,
+    "instrumentCount": 2599,
+    "earliestTradingDate": "2021-01-04",
+    "latestTradingDate": "2026-08-21"
+  },
+  "remainingEvidenceGaps": [
+    "historical delisted/unlisted universe coverage is not yet proven",
+    "corporate-action semantics beyond the recovered adjusted=true CYBOS setting are not independently certified"
+  ]
+}
