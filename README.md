@@ -30,8 +30,35 @@ npm test
 npm run db:check
 ```
 
-`npm test` validates the environment contract without requiring a live database. `npm run db:check` reads the local `.env`, opens a real MySQL connection, and reports the selected database and server version.
+## First Data Add-on: korean-equity-daily
+
+The first detachable Data Add-on recovers the existing CYBOS adjusted daily-bar pipeline and promotes MySQL to the durable SSOT.
+
+Apply its schema once:
+
+```powershell
+npm run data:daily:schema
+```
+
+Migrate the existing legacy archive once, without copying it into this repository:
+
+```powershell
+npm run data:daily:import -- --source "E:\2026\opus\typescript\kiwoom-autotrade-cleanroom-wysiwyg\data\cybos\daily"
+npm run data:daily:check
+```
+
+After the initial migration, normal incremental updates are owned here:
+
+```powershell
+npm run data:daily:update
+```
+
+`data:daily:update` runs the recovered 32-bit CYBOS collector into ignored `.runtime` staging, imports/upserts those validated rows into MySQL, then runs the dataset health check. Set `CYBOS_PYTHON32` if the 32-bit Python executable is not `E:\Python310-32\python.exe`. Set `CYBOS_DAILY_STAGING_DIR` only when an alternate transient staging location is required.
+
+The canonical table/query contract is documented under `addons/korean-equity-daily/`. Consumers should use MySQL or a stable gateway and must not depend on the transient staging path or CYBOS internals.
 
 ## Data Add-on rule
 
-Each dataset will be added as a detachable Data Add-on. A Data Add-on should own its source contract, schema/migrations, ingestion/update logic, quality checks, canonical access SQL/examples, and current state. Consumers should discover datasets through this repository rather than searching old experiment repositories for CSV files or updater scripts.
+Each dataset is a detachable Data Add-on. A Data Add-on owns its source contract, schema/migrations, ingestion/update logic, quality checks, canonical access SQL/examples, and current state. Consumers discover datasets through `catalog/datasets.json` rather than searching old experiment repositories for CSV files or updater scripts.
+
+Git stores the contracts and executable ingestion logic. MySQL stores the durable data. `.runtime` contains only disposable transport/staging material.
