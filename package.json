@@ -5,6 +5,11 @@
   "type": "module",
   "scripts": {
     "db:check": "node ./scripts/check-db.mjs",
+    "data:daily:schema": "node ./scripts/apply-korean-equity-daily-schema.mjs",
+    "data:daily:collect": "node ./scripts/run-cybos-daily.mjs",
+    "data:daily:import": "node ./scripts/import-korean-equity-daily.mjs",
+    "data:daily:check": "node ./scripts/check-korean-equity-daily.mjs",
+    "data:daily:update": "npm run data:daily:collect && npm run data:daily:import && npm run data:daily:check",
     "test": "node --test ./tests/*.test.mjs"
   },
   "dependencies": {
