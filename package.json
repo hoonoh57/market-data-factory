@@ -10,6 +10,9 @@
     "data:daily:import": "node ./scripts/import-korean-equity-daily.mjs",
     "data:daily:check": "node ./scripts/check-korean-equity-daily.mjs",
     "data:daily:update": "npm run data:daily:collect && npm run data:daily:import && npm run data:daily:check",
+    "data:minute:schema": "node ./scripts/apply-korean-equity-minute-schema.mjs",
+    "data:minute:import": "node ./scripts/import-korean-equity-minute-1m.mjs",
+    "data:minute:check": "node ./scripts/check-korean-equity-minute-1m.mjs",
     "test": "node --test ./tests/*.test.mjs"
   },
   "dependencies": {
