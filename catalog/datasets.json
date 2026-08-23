@@ -2,7 +2,7 @@
   "schema": "MarketDataFactoryCatalog@1.0.0",
   "datasets": {
     "korean-equity-daily": {
-      "status": "BOOTSTRAP",
+      "status": "ACTIVE",
       "addon": "addons/korean-equity-daily",
       "database": "market_data",
       "table": "korean_equity_daily",
@@ -12,7 +12,15 @@
       "fields": ["trading_date", "open", "high", "low", "close", "volume", "amount"],
       "collector": "addons/korean-equity-daily/collector/cybos_daily_32.py",
       "importer": "scripts/import-korean-equity-daily.mjs",
-      "accessSql": "addons/korean-equity-daily/access.sql"
+      "accessSql": "addons/korean-equity-daily/access.sql",
+      "verifiedCoverage": {
+        "instrumentCount": 2599,
+        "rowCount": 3299454,
+        "earliestTradingDate": "2021-01-04",
+        "latestTradingDate": "2026-08-21",
+        "verifiedAtKst": "2026-08-24T08:47:00+09:00"
+      },
+      "evidence": "addons/korean-equity-daily/VERIFIED_RESULTS.json"
     }
   }
 }
