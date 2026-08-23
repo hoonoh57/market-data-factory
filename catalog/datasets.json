@@ -21,6 +21,21 @@
         "verifiedAtKst": "2026-08-24T08:47:00+09:00"
       },
       "evidence": "addons/korean-equity-daily/VERIFIED_RESULTS.json"
+    },
+    "korean-equity-minute-1m": {
+      "status": "BOOTSTRAP",
+      "addon": "addons/korean-equity-minute-1m",
+      "database": "market_data",
+      "table": "korean_equity_minute_1m",
+      "healthView": "korean_equity_minute_1m_health",
+      "provider": "CYBOS",
+      "adjusted": true,
+      "timestampContract": "KST_WALL_CLOCK_MINUTE_NO_TIMEZONE_CONVERSION",
+      "exactTimeOnly": true,
+      "fields": ["bar_timestamp", "trading_date", "open", "high", "low", "close", "volume", "amount"],
+      "importer": "scripts/import-korean-equity-minute-1m.mjs",
+      "accessSql": "addons/korean-equity-minute-1m/access.sql",
+      "collectorStatus": "GENERIC_COLLECTOR_PENDING__LEGACY_COLLECTOR_RESEARCH_SELECTION_COUPLED"
     }
   }
 }
