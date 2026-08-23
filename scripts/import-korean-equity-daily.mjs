@@ -73,10 +73,12 @@ try {
       );
       const [[instrument]] = await connection.execute('SELECT instrument_id FROM market_instrument WHERE code = ?', [code]);
       const [existingRows] = await connection.execute(
-        'SELECT trading_date FROM korean_equity_daily WHERE instrument_id = ? AND trading_date BETWEEN ? AND ?',
+        `SELECT DATE_FORMAT(trading_date, '%Y-%m-%d') AS trading_date
+         FROM korean_equity_daily
+         WHERE instrument_id = ? AND trading_date BETWEEN ? AND ?`,
         [instrument.instrument_id, firstDate, lastDate],
       );
-      const existingDates = new Set(existingRows.map(row => new Date(row.trading_date).toISOString().slice(0, 10)));
+      const existingDates = new Set(existingRows.map(row => String(row.trading_date)));
 
       for (let offset = 0; offset < rows.length; offset += 500) {
         const chunk = rows.slice(offset, offset + 500);
