@@ -6,11 +6,17 @@ The repository owns dataset contracts, collectors/updaters, schema migrations, a
 
 ## Local MySQL configuration
 
-Create `E:\market-data-factory\.env` from `.env.example` and set the real connection URL:
+Create `E:\market-data-factory\.env` and keep the existing split MySQL settings:
 
 ```dotenv
-MYSQL_URL=mysql://<user>:<password>@127.0.0.1:3306/market_data
+MYSQL_HOST=127.0.0.1
+MYSQL_PORT=3306
+MYSQL_USER=root
+MYSQL_PASSWORD=<real password>
+MYSQL_DATABASE=market_data
 ```
+
+`MYSQL_DATABASE` is optional and defaults to `market_data` when omitted. `MYSQL_URL` is also supported as an optional override for environments that prefer a single connection URL.
 
 `.env` is intentionally ignored by Git and must never be committed. Application code must obtain the connection through `src/db/mysql.mjs`; Data Add-ons must not duplicate credentials or hard-code host/user/password values.
 
@@ -18,6 +24,7 @@ MYSQL_URL=mysql://<user>:<password>@127.0.0.1:3306/market_data
 
 ```powershell
 Set-Location "E:\market-data-factory"
+git pull --ff-only origin main
 npm install
 npm test
 npm run db:check
