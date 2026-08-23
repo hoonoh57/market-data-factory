@@ -1,0 +1,18 @@
+{
+  "schema": "MarketDataFactoryCatalog@1.0.0",
+  "datasets": {
+    "korean-equity-daily": {
+      "status": "BOOTSTRAP",
+      "addon": "addons/korean-equity-daily",
+      "database": "market_data",
+      "table": "korean_equity_daily",
+      "healthView": "korean_equity_daily_health",
+      "provider": "CYBOS",
+      "adjusted": true,
+      "fields": ["trading_date", "open", "high", "low", "close", "volume", "amount"],
+      "collector": "addons/korean-equity-daily/collector/cybos_daily_32.py",
+      "importer": "scripts/import-korean-equity-daily.mjs",
+      "accessSql": "addons/korean-equity-daily/access.sql"
+    }
+  }
+}
