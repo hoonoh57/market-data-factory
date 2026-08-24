@@ -57,10 +57,14 @@ if (decision.action === 'SKIP') {
   process.exit(0);
 }
 
+const skipDailyRefresh = process.argv.includes('--skip-daily-refresh');
 const pool = createMySqlPool();
 try {
-  // The +15% selection must use the just-completed daily session, so refresh daily first.
-  await run(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'data:daily:update'], { capture: true });
+  // The +15% selection must use the just-completed daily session.
+  // Standalone minute update refreshes daily first; the top-level batch can do it once and pass --skip-daily-refresh.
+  if (!skipDailyRefresh) {
+    await run(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'data:daily:update'], { capture: true });
+  }
 
   const [[latestDaily]] = await pool.query(
     `SELECT DATE_FORMAT(MAX(trading_date), '%Y-%m-%d') AS latest_date
