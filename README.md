@@ -4,6 +4,40 @@ Shared market-data SSOT and Data Add-on factory.
 
 The repository owns dataset contracts, collectors/updaters, schema migrations, access examples, integrity checks, and the Data Add-on catalog. Actual market data lives in MySQL rather than inside experiment-project folders.
 
+## Normal update entrypoint
+
+For routine maintenance, use the repository-root batch file:
+
+```text
+E:\market-data-factory\UPDATE_MARKET_DATA.bat
+```
+
+Double-clicking this file, or running it from a command prompt, updates both Korean equity daily data and 1-minute data through the stable `npm run data:update` entrypoint.
+
+Normal sequence:
+
+```text
+daily update
+  -> refresh completed daily bars
+  -> MySQL upsert + health check
+
+minute update
+  -> before 20:00 KST: current trading session is skipped safely
+  -> after a completed session: KRX300 + stocks up >=15% versus previous close
+  -> new minute symbols: recent 6-month backfill
+  -> existing minute symbols: incremental update
+  -> MySQL upsert + health check
+```
+
+The batch file pauses at the end so success/failure remains visible. Internal update scripts may change over time; `UPDATE_MARKET_DATA.bat` is the durable human-facing entrypoint.
+
+Equivalent command-line entrypoint:
+
+```powershell
+Set-Location "E:\market-data-factory"
+npm run data:update
+```
+
 ## Local MySQL configuration
 
 Create `E:\market-data-factory\.env` and keep the existing split MySQL settings:
@@ -47,7 +81,7 @@ npm run data:daily:import -- --source "E:\2026\opus\typescript\kiwoom-autotrade-
 npm run data:daily:check
 ```
 
-After the initial migration, normal incremental updates are owned here:
+After the initial migration, normal incremental updates are owned here. Prefer `UPDATE_MARKET_DATA.bat` for routine operation. The lower-level daily-only command remains available when specifically needed:
 
 ```powershell
 npm run data:daily:update
