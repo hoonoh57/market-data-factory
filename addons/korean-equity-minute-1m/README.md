@@ -8,10 +8,10 @@ Provide one durable MySQL-backed 1-minute bar contract for exact intraday resear
 
 ## Source contract
 
-- recovered provider: CYBOS Plus `CpSysDib.StockChart`
+- provider: CYBOS Plus `CpSysDib.StockChart`
 - interval: exact 1 minute
-- recovered exchange selector: `A`
-- recovered adjusted-price setting: `true`
+- exchange selector: `A`
+- adjusted-price setting: `true`
 - source fields: timestamp, open, high, low, close, volume, amount
 - timestamp meaning: local Korea market wall-clock minute (`YYYY-MM-DDTHH:MM`), stored in MySQL as `DATETIME` without timezone conversion
 - exact-time rule: no nearest-time repair and no synthetic timestamp repair
@@ -45,7 +45,28 @@ The dataset is ACTIVE for its verified coverage. This does not imply whole-marke
 
 ## Normal access
 
-Use `access.sql` as canonical SQL examples. Consumers should depend on this table contract or a stable gateway, not on CYBOS, legacy research selection files, or CSV paths.
+Use `access.sql` as canonical SQL examples. Consumers should depend on this table contract or a stable gateway, not on CYBOS, old experiment folders, or frozen research-selection files.
+
+## Incremental update contract
+
+Normal command:
+
+```powershell
+npm run data:minute:update
+```
+
+Default behavior:
+
+1. Before 20:00 KST, the command safely skips because the current market session is incomplete.
+2. After the completed session, it first refreshes `korean-equity-daily` so the selection uses the latest completed daily bars.
+3. It fetches the canonical stock master and selects the current KRX300 300-member basket.
+4. It computes all stocks whose latest completed daily close is at least 15% above the previous trading day's close.
+5. The minute target universe is `KRX300 UNION daily +15% movers`.
+6. For a target already present in `korean_equity_minute_1m`, collection starts after that instrument's own latest stored trading date.
+7. For a newly selected target, collection backfills six months ending at the completed session date.
+8. Staged CSV is validated and idempotently upserted into MySQL, then the minute health check runs.
+
+This dynamic universe is a data-maintenance coverage policy. It is not a frozen research cohort and must not be treated as research evidence by itself.
 
 ## Migration flow
 
@@ -59,16 +80,12 @@ legacy 1m CSV archive
 
 The legacy CSV archive is migration input only. MySQL is now the durable SSOT for the verified imported coverage.
 
-## Collector status
-
-The recovered legacy minute updater is not promoted as the canonical Data Add-on updater yet because it is coupled to a historical 545-symbol research selection, stock-master hash, and NXT source-acceptance probe. Those research-selection semantics must not become a generic data-infrastructure contract. A generic minute collector should reuse only the provider/validation primitives and receive its symbol universe through a neutral data contract.
-
 ## Detachment
 
-Removing this Add-on removes its minute schema/import/access contract only. It must not alter the daily dataset or research semantics.
+Removing this Add-on removes its minute schema/collector/import/access contract only. It must not alter the daily dataset or research semantics.
 
 ## Open evidence gaps
 
-- generic incremental collector detached from historical research selection
+- live verification of the new incremental update command after a completed market session
 - historical delisted/unlisted universe coverage
-- independent certification of corporate-action semantics beyond recovered `adjusted=true`
+- independent certification of corporate-action semantics beyond `adjusted=true`
