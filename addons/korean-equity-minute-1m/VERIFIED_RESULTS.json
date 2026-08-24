@@ -1,0 +1,35 @@
+{
+  "schema": "DataAddonVerifiedResults@1.0.0",
+  "datasetId": "korean-equity-minute-1m",
+  "status": "ACTIVE",
+  "verifiedAtKst": "2026-08-24T09:16:00+09:00",
+  "mysql": {
+    "database": "market_data",
+    "table": "korean_equity_minute_1m",
+    "healthView": "korean_equity_minute_1m_health"
+  },
+  "migration": {
+    "files": 545,
+    "rows": 30799935,
+    "inserted": 30799935,
+    "updated": 0,
+    "health": "PASS"
+  },
+  "coverage": {
+    "instrumentCount": 545,
+    "earliestBarTimestampKst": "2026-02-23 08:01:00",
+    "latestBarTimestampKst": "2026-08-21 20:00:00"
+  },
+  "contracts": {
+    "adjusted": true,
+    "timestamp": "KST_WALL_CLOCK_MINUTE_NO_TIMEZONE_CONVERSION",
+    "exactTimeOnly": true,
+    "nearestRepairAllowed": false,
+    "syntheticTimestampRepairAllowed": false
+  },
+  "limitations": [
+    "Verified coverage is limited to the migrated 545-instrument legacy archive.",
+    "This evidence does not prove whole-market or survivorship-safe historical coverage.",
+    "The legacy collector remains research-selection coupled and is not the canonical generic updater."
+  ]
+}
