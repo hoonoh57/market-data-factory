@@ -33,9 +33,17 @@
       "timestampContract": "KST_WALL_CLOCK_MINUTE_NO_TIMEZONE_CONVERSION",
       "exactTimeOnly": true,
       "fields": ["bar_timestamp", "trading_date", "open", "high", "low", "close", "volume", "amount"],
+      "collector": "addons/korean-equity-minute-1m/collector/cybos_minute_1m_32.py",
       "importer": "scripts/import-korean-equity-minute-1m.mjs",
+      "updater": "scripts/update-korean-equity-minute-1m.mjs",
       "accessSql": "addons/korean-equity-minute-1m/access.sql",
-      "collectorStatus": "GENERIC_COLLECTOR_PENDING__LEGACY_COLLECTOR_RESEARCH_SELECTION_COUPLED",
+      "collectorStatus": "IMPLEMENTED__LIVE_COMPLETED_SESSION_VERIFICATION_PENDING",
+      "updatePolicy": {
+        "sessionGuard": "SKIP_BEFORE_20_00_KST",
+        "universe": "KRX300_UNION_DAILY_CLOSE_CHANGE_GTE_15_PERCENT",
+        "newInstrumentBackfillMonths": 6,
+        "existingInstrumentMode": "INCREMENTAL_FROM_OWN_LATEST_TRADING_DATE"
+      },
       "verifiedCoverage": {
         "instrumentCount": 545,
         "rowCount": 30799935,
