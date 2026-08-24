@@ -28,6 +28,21 @@ Health view: `korean_equity_minute_1m_health`
 
 Apply `schema.sql` before importing.
 
+## Verified migration evidence
+
+Verified on 2026-08-24 KST against the local MySQL SSOT:
+
+- imported files: 545
+- imported rows: 30,799,935
+- inserted rows: 30,799,935
+- updated rows: 0
+- instrument count: 545
+- earliest bar timestamp: 2026-02-23 08:01:00 KST wall clock
+- latest bar timestamp: 2026-08-21 20:00:00 KST wall clock
+- health check: PASS
+
+The dataset is ACTIVE for its verified coverage. This does not imply whole-market or survivorship-safe historical coverage.
+
 ## Normal access
 
 Use `access.sql` as canonical SQL examples. Consumers should depend on this table contract or a stable gateway, not on CYBOS, legacy research selection files, or CSV paths.
@@ -42,7 +57,7 @@ legacy 1m CSV archive
   -> health check
 ```
 
-The legacy CSV archive is migration input only. MySQL becomes the durable SSOT after verified import.
+The legacy CSV archive is migration input only. MySQL is now the durable SSOT for the verified imported coverage.
 
 ## Collector status
 
@@ -54,7 +69,6 @@ Removing this Add-on removes its minute schema/import/access contract only. It m
 
 ## Open evidence gaps
 
-- first full archive migration and coverage measurement
 - generic incremental collector detached from historical research selection
 - historical delisted/unlisted universe coverage
 - independent certification of corporate-action semantics beyond recovered `adjusted=true`
