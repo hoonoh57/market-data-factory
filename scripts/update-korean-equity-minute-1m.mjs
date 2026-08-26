@@ -51,59 +51,85 @@ function groupByFrom(plan) {
   return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
 }
 
-const decision = minuteUpdateDecision();
-if (decision.action === 'SKIP') {
-  console.log(`[PASS] minute update skipped: current trading session is not complete before ${decision.completedSessionHourKst}:00 KST`);
-  process.exit(0);
+async function resolveLatestCompletedDaily(pool, eligibleCalendarDate) {
+  const [[row]] = await pool.query(
+    `SELECT DATE_FORMAT(MAX(trading_date), '%Y-%m-%d') AS latest_date
+     FROM korean_equity_daily
+     WHERE trading_date <= ?`,
+    [eligibleCalendarDate],
+  );
+  if (!row?.latest_date) {
+    throw new Error(`Daily dataset has no completed session on or before ${eligibleCalendarDate}.`);
+  }
+  return String(row.latest_date);
 }
 
+async function loadRecentMoverCodes(pool, sessionDate, lookbackTradingDays = 20) {
+  const requiredDates = lookbackTradingDays + 1;
+  const [rows] = await pool.query(
+    `WITH dates_n AS (
+       SELECT trading_date
+       FROM (
+         SELECT DISTINCT trading_date
+         FROM korean_equity_daily
+         WHERE trading_date <= ?
+         ORDER BY trading_date DESC
+         LIMIT ?
+       ) recent
+     ),
+     paired_dates AS (
+       SELECT trading_date,
+              LAG(trading_date) OVER (ORDER BY trading_date) AS previous_date
+       FROM dates_n
+     ),
+     target_dates AS (
+       SELECT trading_date, previous_date
+       FROM paired_dates
+       WHERE previous_date IS NOT NULL
+       ORDER BY trading_date DESC
+       LIMIT ?
+     )
+     SELECT DISTINCT i.code
+     FROM target_dates d
+     JOIN korean_equity_daily c
+       ON c.trading_date = d.trading_date
+     JOIN korean_equity_daily p
+       ON p.instrument_id = c.instrument_id
+      AND p.trading_date = d.previous_date
+     JOIN market_instrument i
+       ON i.instrument_id = c.instrument_id
+     WHERE p.close > 0
+       AND c.close >= p.close * 1.15
+     ORDER BY i.code`,
+    [sessionDate, requiredDates, lookbackTradingDays],
+  );
+  return rows.map(row => String(row.code));
+}
+
+const decision = minuteUpdateDecision();
 const skipDailyRefresh = process.argv.includes('--skip-daily-refresh');
 const pool = createMySqlPool();
 try {
-  // The +15% selection must use the just-completed daily session.
-  // Standalone minute update refreshes daily first; the top-level batch can do it once and pass --skip-daily-refresh.
+  // Today is never eligible before 20:00 KST. Past completed sessions are still catch-up eligible.
   if (!skipDailyRefresh) {
     await run(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'data:daily:update'], { capture: true });
   }
 
-  const [[latestDaily]] = await pool.query(
-    `SELECT DATE_FORMAT(MAX(trading_date), '%Y-%m-%d') AS latest_date
-     FROM korean_equity_daily`,
-  );
-  if (!latestDaily?.latest_date) throw new Error('Daily dataset is empty.');
-  if (latestDaily.latest_date !== decision.kstDate) {
-    throw new Error(`Daily dataset latest date ${latestDaily.latest_date} does not match completed session ${decision.kstDate}.`);
+  const sessionDate = await resolveLatestCompletedDaily(pool, decision.eligibleCalendarDate);
+  if (sessionDate < decision.eligibleCalendarDate) {
+    console.log(
+      `[INFO] latest completed trading session=${sessionDate} eligible_calendar_date=${decision.eligibleCalendarDate}`,
+    );
   }
-
-  const [[previousDaily]] = await pool.query(
-    `SELECT DATE_FORMAT(MAX(trading_date), '%Y-%m-%d') AS previous_date
-     FROM korean_equity_daily
-     WHERE trading_date < ?`,
-    [latestDaily.latest_date],
-  );
-  if (!previousDaily?.previous_date) throw new Error('Unable to resolve previous trading date from daily dataset.');
 
   const stockMaster = await fetchStockMaster();
   const krx300Codes = stockMaster.rows
     .filter(row => row.krx300 === '1')
     .map(row => row.code.slice(1));
 
-  const [movers] = await pool.query(
-    `SELECT i.code,
-            p.close AS previous_close,
-            c.close AS current_close,
-            ((c.close / p.close) - 1) * 100 AS change_pct
-     FROM korean_equity_daily c
-     JOIN korean_equity_daily p
-       ON p.instrument_id = c.instrument_id AND p.trading_date = ?
-     JOIN market_instrument i ON i.instrument_id = c.instrument_id
-     WHERE c.trading_date = ?
-       AND p.close > 0
-       AND c.close >= p.close * 1.15
-     ORDER BY i.code`,
-    [previousDaily.previous_date, latestDaily.latest_date],
-  );
-  const moverCodes = movers.map(row => String(row.code));
+  // Coverage policy: KRX300 UNION any stock with >=15% close-to-close gain on at least
+  // one of the most recent 20 completed trading days ending at sessionDate.
+  const moverCodes = await loadRecentMoverCodes(pool, sessionDate, 20);
   const targetCodes = [...new Set([...krx300Codes, ...moverCodes])].sort();
   if (!targetCodes.length) throw new Error('Minute target universe resolved to zero instruments.');
 
@@ -115,14 +141,17 @@ try {
      GROUP BY i.code`,
     [targetCodes],
   );
-  const latestByCode = new Map(existing.map(row => [String(row.code), row.latest_date]));
-  const newFrom = subtractMonths(decision.kstDate, 6);
+  const latestByCode = new Map(existing.map(row => [String(row.code), String(row.latest_date)]));
+  const newFrom = subtractMonths(sessionDate, 6);
   const plan = targetCodes
     .map(code => ({ code, from: latestByCode.has(code) ? nextIsoDay(latestByCode.get(code)) : newFrom }))
-    .filter(item => item.from <= decision.kstDate);
+    .filter(item => item.from <= sessionDate);
 
   if (!plan.length) {
-    console.log(`[PASS] minute update already current universe=${targetCodes.length} krx300=${krx300Codes.length} movers15=${moverCodes.length}`);
+    console.log(
+      `[PASS] minute update already current session=${sessionDate} universe=${targetCodes.length} ` +
+      `krx300=${krx300Codes.length} movers15_20d=${moverCodes.length}`,
+    );
     process.exit(0);
   }
 
@@ -137,7 +166,7 @@ try {
       collector,
       '--symbols', codes.join(','),
       '--from', dateFrom,
-      '--to', decision.kstDate,
+      '--to', sessionDate,
       '--output', staging,
       '--exchange', 'A',
       '--adjusted', 'true',
@@ -151,8 +180,9 @@ try {
   const newCount = targetCodes.filter(code => !latestByCode.has(code)).length;
   const existingCount = targetCodes.length - newCount;
   console.log(
-    `[PASS] minute update session=${decision.kstDate} universe=${targetCodes.length} ` +
-    `krx300=${krx300Codes.length} movers15=${moverCodes.length} existing=${existingCount} new=${newCount}`
+    `[PASS] minute update session=${sessionDate} eligible_calendar_date=${decision.eligibleCalendarDate} ` +
+    `universe=${targetCodes.length} krx300=${krx300Codes.length} movers15_20d=${moverCodes.length} ` +
+    `existing=${existingCount} new=${newCount}`,
   );
 } catch (error) {
   console.error(`[ERROR] minute update failed: ${error?.message ?? String(error)}`);
