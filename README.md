@@ -18,14 +18,16 @@ Normal sequence:
 
 ```text
 daily update
-  -> refresh completed daily bars
+  -> before 20:00 KST: today's unfinished daily bar is excluded
+  -> refresh only completed daily bars
   -> MySQL upsert + health check
 
 minute update
-  -> before 20:00 KST: current trading session is skipped safely
-  -> after a completed session: KRX300 + stocks up >=15% versus previous close
-  -> new minute symbols: recent 6-month backfill
-  -> existing minute symbols: incremental update
+  -> before 20:00 KST: today's unfinished session is excluded, but older missing completed sessions are still caught up
+  -> at/after 20:00 KST: today's completed session becomes eligible
+  -> target universe: current KRX300 + stocks with >=15% close-to-close gain on any of the most recent 20 completed trading days
+  -> existing minute symbols: start at each symbol's MAX(trading_date) + 1 day
+  -> newly selected minute symbols: recent 6-month backfill ending at the latest completed session
   -> MySQL upsert + health check
 ```
 
