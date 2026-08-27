@@ -1,0 +1,26 @@
+{
+  "dataset": "korean-market-index",
+  "verifiedAtKst": "2026-08-27",
+  "status": "PASS",
+  "provider": "CYBOS",
+  "indexCodes": ["U001", "U201"],
+  "daily": {
+    "rowCount": 2770,
+    "indexCount": 2,
+    "earliestTradingDate": "2021-01-04",
+    "latestTradingDate": "2026-08-27"
+  },
+  "minute1m": {
+    "rowCount": 99998,
+    "indexCount": 2,
+    "earliestBarTimestampKst": "2026-02-23 09:01:00",
+    "latestBarTimestampKst": "2026-08-27 15:45:00",
+    "timestampSemantics": "end"
+  },
+  "evidence": [
+    "npm test: 26/26 PASS",
+    "npm run data:index:schema: PASS",
+    "npm run data:index:update: PASS session=2026-08-27",
+    "npm run data:index:check: PASS"
+  ]
+}
