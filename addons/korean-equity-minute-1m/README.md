@@ -41,6 +41,16 @@ Verified on 2026-08-24 KST against the local MySQL SSOT:
 - latest bar timestamp: 2026-08-21 20:00:00 KST wall clock
 - health check: PASS
 
+## Verified incremental catch-up evidence
+
+Verified on 2026-08-27 KST before 20:00, after the revised completion guard and dynamic-universe update:
+
+- latest completed minute trading date: 2026-08-26
+- instrument count: 760
+- total rows: 40,336,555
+- current 2026-08-27 session was not admitted before 20:00
+- older completed sessions were successfully caught up beyond the prior 2026-08-21 endpoint
+
 The dataset is ACTIVE for its verified coverage. This does not imply whole-market or survivorship-safe historical coverage.
 
 ## Normal access
@@ -88,6 +98,5 @@ Removing this Add-on removes its minute schema/collector/import/access contract 
 
 ## Open evidence gaps
 
-- live verification of the revised incremental catch-up command against completed sessions after the latest stored minute date
 - historical delisted/unlisted universe coverage
 - independent certification of corporate-action semantics beyond `adjusted=true`
