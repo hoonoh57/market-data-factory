@@ -15,10 +15,10 @@
       "accessSql": "addons/korean-equity-daily/access.sql",
       "verifiedCoverage": {
         "instrumentCount": 2599,
-        "rowCount": 3299454,
+        "rowCount": 3307249,
         "earliestTradingDate": "2021-01-04",
-        "latestTradingDate": "2026-08-21",
-        "verifiedAtKst": "2026-08-24T08:47:00+09:00"
+        "latestTradingDate": "2026-08-26",
+        "verifiedAtKst": "2026-08-27"
       },
       "evidence": "addons/korean-equity-daily/VERIFIED_RESULTS.json"
     },
@@ -37,21 +37,51 @@
       "importer": "scripts/import-korean-equity-minute-1m.mjs",
       "updater": "scripts/update-korean-equity-minute-1m.mjs",
       "accessSql": "addons/korean-equity-minute-1m/access.sql",
-      "collectorStatus": "IMPLEMENTED__LIVE_COMPLETED_SESSION_VERIFICATION_PENDING",
+      "collectorStatus": "ACTIVE_INCREMENTAL_VERIFIED",
       "updatePolicy": {
-        "sessionGuard": "SKIP_BEFORE_20_00_KST",
-        "universe": "KRX300_UNION_DAILY_CLOSE_CHANGE_GTE_15_PERCENT",
+        "sessionGuard": "BEFORE_20_00_KST_EXCLUDE_TODAY_BUT_CATCH_UP_PAST_COMPLETED_SESSIONS",
+        "universe": "KRX300_UNION_ANY_GTE_15_PERCENT_CLOSE_GAIN_IN_RECENT_20_COMPLETED_TRADING_DAYS",
         "newInstrumentBackfillMonths": 6,
         "existingInstrumentMode": "INCREMENTAL_FROM_OWN_LATEST_TRADING_DATE"
       },
       "verifiedCoverage": {
-        "instrumentCount": 545,
-        "rowCount": 30799935,
+        "instrumentCount": 760,
+        "rowCount": 40336555,
         "earliestBarTimestampKst": "2026-02-23 08:01:00",
-        "latestBarTimestampKst": "2026-08-21 20:00:00",
-        "verifiedAtKst": "2026-08-24T09:16:00+09:00"
+        "latestTradingDate": "2026-08-26",
+        "verifiedAtKst": "2026-08-27"
       },
       "evidence": "addons/korean-equity-minute-1m/VERIFIED_RESULTS.json"
+    },
+    "korean-market-index": {
+      "status": "IMPLEMENTED__LIVE_VERIFICATION_PENDING",
+      "addon": "addons/korean-market-index",
+      "database": "market_data",
+      "tables": {
+        "daily": "market_index_daily",
+        "minute1m": "market_index_minute_1m"
+      },
+      "healthViews": {
+        "daily": "market_index_daily_health",
+        "minute1m": "market_index_minute_1m_health"
+      },
+      "provider": "CYBOS",
+      "indexCodes": {
+        "U001": "KOSPI",
+        "U201": "KOSDAQ"
+      },
+      "timestampContract": "KST_WALL_CLOCK_MINUTE_NO_TIMEZONE_CONVERSION",
+      "fields": ["open", "high", "low", "close", "volume"],
+      "collector": "addons/korean-market-index/collector/cybos_market_index_32.py",
+      "importer": "scripts/import-korean-market-index.mjs",
+      "updater": "scripts/update-korean-market-index.mjs",
+      "accessSql": "addons/korean-market-index/access.sql",
+      "updatePolicy": {
+        "sessionGuard": "BEFORE_20_00_KST_EXCLUDE_TODAY_BUT_CATCH_UP_PAST_COMPLETED_SESSIONS",
+        "initialDailyFrom": "EARLIEST_KOREAN_EQUITY_DAILY_DATE",
+        "initialMinuteFrom": "EARLIEST_KOREAN_EQUITY_MINUTE_1M_DATE",
+        "incrementalMode": "PER_INDEX_MAX_TRADING_DATE_PLUS_ONE"
+      }
     }
   }
 }
