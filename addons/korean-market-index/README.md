@@ -24,7 +24,7 @@ Health views:
 - `market_index_daily_health`
 - `market_index_minute_1m_health`
 
-The minute timestamp is stored as Korea market wall-clock `DATETIME` without timezone conversion, matching the repository's Korean equity minute convention.
+The minute timestamp is stored as Korea market wall-clock `DATETIME` without timezone conversion. Live data begins at `09:01` and is operated as end-stamped minute data for completed-bar alignment.
 
 ## Incremental update contract
 
@@ -44,7 +44,7 @@ Rules:
 6. After initial population, each index resumes independently from its own `MAX(trading_date) + 1 day`.
 7. Import is idempotent via primary-key upsert, followed by a health check.
 
-`--skip-daily-refresh` is supported for an orchestrator that already refreshed completed equity daily data.
+`--skip-daily-refresh` is supported for the repository-wide orchestrator after completed equity daily data has already been refreshed.
 
 ## First-time bootstrap
 
@@ -53,12 +53,19 @@ npm run data:index:schema
 npm run data:index:update
 ```
 
-The first run can be substantially longer because it backfills daily history and the available 1-minute research horizon for both indexes.
-
 ## Research use
 
-For `[1516]`-style forward performance comparison, use the benchmark matching the stock's market when that mapping is known. Compare from the same completed intraday timestamp as the stock entry, then evaluate the same 5/10/20/60 future trading-day horizons. Do not substitute the selectively stored equity-minute universe as the market benchmark.
+For `[1516]`-style forward performance comparison, use the benchmark matching the stock's market. Compare from the same completed intraday timestamp as the stock entry, then evaluate the same 5/10/20/60 future trading-day horizons. Do not substitute the selectively stored equity-minute universe as the market benchmark.
 
 ## Verification state
 
-Implementation is present, but the add-on remains **LIVE VERIFICATION PENDING** until schema application, unit tests, CYBOS backfill, import, and health checks pass on the Windows/CYBOS host.
+**LIVE VERIFIED / ACTIVE** on 2026-08-27:
+
+- unit tests: 26/26 PASS
+- schema application: PASS
+- updater: PASS with session `2026-08-27`, `U001,U201`
+- daily rows: `2,770`, range `2021-01-04..2026-08-27`
+- minute rows: `99,998`, range `2026-02-23 09:01:00..2026-08-27 15:45:00`
+- health check: PASS
+
+Machine-readable evidence is stored in `VERIFIED_RESULTS.json`.
