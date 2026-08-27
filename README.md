@@ -12,9 +12,9 @@ For routine maintenance, use the repository-root batch file:
 E:\market-data-factory\UPDATE_MARKET_DATA.bat
 ```
 
-Double-clicking this file, or running it from a command prompt, updates both Korean equity daily data and 1-minute data through the stable `npm run data:update` entrypoint.
+Double-clicking this file, or running it from a command prompt, updates the currently verified Korean equity daily and 1-minute datasets through the stable `npm run data:update` entrypoint.
 
-Normal sequence:
+Normal verified sequence:
 
 ```text
 daily update
@@ -39,6 +39,30 @@ Equivalent command-line entrypoint:
 Set-Location "E:\market-data-factory"
 npm run data:update
 ```
+
+## KOSPI/KOSDAQ benchmark add-on
+
+The `korean-market-index` add-on provides official benchmark candles for:
+
+- `U001`: KOSPI
+- `U201`: KOSDAQ
+
+It stores both `market_index_daily` and `market_index_minute_1m` with decimal index levels. Its completed-session policy is the same as the equity minute updater: before 20:00 KST today is excluded but older completed gaps remain catch-up eligible; at/after 20:00 KST today becomes eligible.
+
+The add-on is implemented but remains live-verification pending. It is intentionally **not yet wired into `npm run data:update`** until its first Windows/CYBOS backfill and health check pass.
+
+First verification sequence:
+
+```powershell
+Set-Location "E:\market-data-factory"
+git pull --ff-only origin main
+npm test
+npm run data:index:schema
+npm run data:index:update
+npm run data:index:check
+```
+
+On first population, index daily history starts from the earliest date in `korean_equity_daily`; index 1-minute history starts from the earliest date in `korean_equity_minute_1m`. After that, U001 and U201 each resume from their own `MAX(trading_date) + 1 day`.
 
 ## Local MySQL configuration
 
