@@ -54,7 +54,7 @@
       "evidence": "addons/korean-equity-minute-1m/VERIFIED_RESULTS.json"
     },
     "korean-market-index": {
-      "status": "IMPLEMENTED__LIVE_VERIFICATION_PENDING",
+      "status": "ACTIVE",
       "addon": "addons/korean-market-index",
       "database": "market_data",
       "tables": {
@@ -71,6 +71,7 @@
         "U201": "KOSDAQ"
       },
       "timestampContract": "KST_WALL_CLOCK_MINUTE_NO_TIMEZONE_CONVERSION",
+      "minuteTimestampSemantics": "end",
       "fields": ["open", "high", "low", "close", "volume"],
       "collector": "addons/korean-market-index/collector/cybos_market_index_32.py",
       "importer": "scripts/import-korean-market-index.mjs",
@@ -81,7 +82,18 @@
         "initialDailyFrom": "EARLIEST_KOREAN_EQUITY_DAILY_DATE",
         "initialMinuteFrom": "EARLIEST_KOREAN_EQUITY_MINUTE_1M_DATE",
         "incrementalMode": "PER_INDEX_MAX_TRADING_DATE_PLUS_ONE"
-      }
+      },
+      "verifiedCoverage": {
+        "indexCount": 2,
+        "dailyRowCount": 2770,
+        "minuteRowCount": 99998,
+        "earliestDailyDate": "2021-01-04",
+        "latestDailyDate": "2026-08-27",
+        "earliestMinuteTimestampKst": "2026-02-23 09:01:00",
+        "latestMinuteTimestampKst": "2026-08-27 15:45:00",
+        "verifiedAtKst": "2026-08-27"
+      },
+      "evidence": "addons/korean-market-index/VERIFIED_RESULTS.json"
     }
   }
 }
