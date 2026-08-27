@@ -12,7 +12,7 @@ For routine maintenance, use the repository-root batch file:
 E:\market-data-factory\UPDATE_MARKET_DATA.bat
 ```
 
-Double-clicking this file, or running it from a command prompt, updates the currently verified Korean equity daily and 1-minute datasets through the stable `npm run data:update` entrypoint.
+Double-clicking this file, or running it from a command prompt, updates the verified Korean equity daily, selective 1-minute equity, and official KOSPI/KOSDAQ index datasets through the stable `npm run data:update` entrypoint.
 
 Normal verified sequence:
 
@@ -22,12 +22,19 @@ daily update
   -> refresh only completed daily bars
   -> MySQL upsert + health check
 
-minute update
+minute equity update
   -> before 20:00 KST: today's unfinished session is excluded, but older missing completed sessions are still caught up
   -> at/after 20:00 KST: today's completed session becomes eligible
   -> target universe: current KRX300 + stocks with >=15% close-to-close gain on any of the most recent 20 completed trading days
   -> existing minute symbols: start at each symbol's MAX(trading_date) + 1 day
   -> newly selected minute symbols: recent 6-month backfill ending at the latest completed session
+  -> MySQL upsert + health check
+
+market index update
+  -> U001=KOSPI, U201=KOSDAQ
+  -> same completed-session guard
+  -> U001/U201 each resume from own MAX(trading_date) + 1 day
+  -> daily + exact end-stamped 1-minute series
   -> MySQL upsert + health check
 ```
 
@@ -42,27 +49,22 @@ npm run data:update
 
 ## KOSPI/KOSDAQ benchmark add-on
 
-The `korean-market-index` add-on provides official benchmark candles for:
+The active `korean-market-index` add-on provides official benchmark candles for:
 
 - `U001`: KOSPI
 - `U201`: KOSDAQ
 
-It stores both `market_index_daily` and `market_index_minute_1m` with decimal index levels. Its completed-session policy is the same as the equity minute updater: before 20:00 KST today is excluded but older completed gaps remain catch-up eligible; at/after 20:00 KST today becomes eligible.
+It stores `market_index_daily` and `market_index_minute_1m` with decimal index levels. Its completed-session policy is the same as the equity update boundary: before 20:00 KST today is excluded but older completed gaps remain catch-up eligible; at/after 20:00 KST today becomes eligible.
 
-The add-on is implemented but remains live-verification pending. It is intentionally **not yet wired into `npm run data:update`** until its first Windows/CYBOS backfill and health check pass.
+Live verification on 2026-08-27 passed with daily range `2021-01-04..2026-08-27` and minute range `2026-02-23 09:01:00..2026-08-27 15:45:00`. Machine-readable evidence is in `addons/korean-market-index/VERIFIED_RESULTS.json`.
 
-First verification sequence:
+Standalone commands remain available:
 
 ```powershell
-Set-Location "E:\market-data-factory"
-git pull --ff-only origin main
-npm test
 npm run data:index:schema
 npm run data:index:update
 npm run data:index:check
 ```
-
-On first population, index daily history starts from the earliest date in `korean_equity_daily`; index 1-minute history starts from the earliest date in `korean_equity_minute_1m`. After that, U001 and U201 each resume from their own `MAX(trading_date) + 1 day`.
 
 ## Local MySQL configuration
 
@@ -90,9 +92,7 @@ npm test
 npm run db:check
 ```
 
-## First Data Add-on: korean-equity-daily
-
-The first detachable Data Add-on recovers the existing CYBOS adjusted daily-bar pipeline and promotes MySQL to the durable SSOT.
+## Korean equity daily Data Add-on
 
 Apply its schema once:
 
@@ -100,22 +100,27 @@ Apply its schema once:
 npm run data:daily:schema
 ```
 
-Migrate the existing legacy archive once, without copying it into this repository:
-
-```powershell
-npm run data:daily:import -- --source "E:\2026\opus\typescript\kiwoom-autotrade-cleanroom-wysiwyg\data\cybos\daily"
-npm run data:daily:check
-```
-
-After the initial migration, normal incremental updates are owned here. Prefer `UPDATE_MARKET_DATA.bat` for routine operation. The lower-level daily-only command remains available when specifically needed:
+The lower-level daily-only command remains available when specifically needed:
 
 ```powershell
 npm run data:daily:update
 ```
 
-`data:daily:update` runs the recovered 32-bit CYBOS collector into ignored `.runtime` staging, imports/upserts those validated rows into MySQL, then runs the dataset health check. Set `CYBOS_PYTHON32` if the 32-bit Python executable is not `E:\Python310-32\python.exe`. Set `CYBOS_DAILY_STAGING_DIR` only when an alternate transient staging location is required.
+## Korean equity 1-minute Data Add-on
 
-The canonical table/query contract is documented under `addons/korean-equity-daily/`. Consumers should use MySQL or a stable gateway and must not depend on the transient staging path or CYBOS internals.
+Apply its schema once:
+
+```powershell
+npm run data:minute:schema
+```
+
+Standalone update:
+
+```powershell
+npm run data:minute:update
+```
+
+Its storage universe is deliberately selective and must not be used as a market benchmark.
 
 ## Data Add-on rule
 
