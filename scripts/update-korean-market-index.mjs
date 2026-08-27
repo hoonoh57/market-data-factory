@@ -8,6 +8,7 @@ import { buildIndexUpdatePlan, groupIndexPlanByFrom } from '../src/data/marketIn
 
 function run(command, args, { cwd = process.cwd(), capture = false } = {}) {
   return new Promise((resolve, reject) => {
+    let settled = false;
     const child = spawn(command, args, {
       cwd,
       stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'inherit',
@@ -19,12 +20,32 @@ function run(command, args, { cwd = process.cwd(), capture = false } = {}) {
       child.stdout.on('data', chunk => { stdout += chunk; });
       child.stderr.on('data', chunk => { stderr += chunk; });
     }
-    child.on('error', reject);
+    child.on('error', error => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    });
     child.on('exit', code => {
+      if (settled) return;
+      settled = true;
       if (code === 0) resolve({ stdout, stderr });
       else reject(new Error((stderr || stdout || `${command} exited with code ${code}`).trim()));
     });
   });
+}
+
+async function runNodeScript(script, args = [], options = {}) {
+  return run(process.execPath, [path.resolve(script), ...args], options);
+}
+
+async function refreshCompletedDaily() {
+  // Do not spawn npm.cmd from Node on Windows. Newer Node releases can reject
+  // direct .cmd spawning with EINVAL when shell=false. Execute the three stable
+  // daily-update stages through node.exe instead; this is equivalent to
+  // `npm run data:daily:update` without a command-shell dependency.
+  await runNodeScript('scripts/run-cybos-daily.mjs', [], { capture: true });
+  await runNodeScript('scripts/import-korean-equity-daily.mjs', [], { capture: true });
+  await runNodeScript('scripts/check-korean-equity-daily.mjs', [], { capture: true });
 }
 
 async function requireTable(pool, table) {
@@ -76,7 +97,7 @@ const pool = createMySqlPool();
 
 try {
   if (!skipDailyRefresh) {
-    await run(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'data:daily:update'], { capture: true });
+    await refreshCompletedDaily();
   }
 
   await requireTable(pool, 'market_index_daily');
@@ -143,8 +164,8 @@ try {
     mode: 'minute', plan: minutePlan, sessionDate, staging, python32, collector,
   });
 
-  await run(process.execPath, [path.resolve('scripts/import-korean-market-index.mjs'), '--source', staging], { capture: true });
-  await run(process.execPath, [path.resolve('scripts/check-korean-market-index.mjs')], { capture: true });
+  await runNodeScript('scripts/import-korean-market-index.mjs', ['--source', staging], { capture: true });
+  await runNodeScript('scripts/check-korean-market-index.mjs', [], { capture: true });
 
   const dailyNew = INDEX_CODES.filter(code => !dailyLatest.has(code)).length;
   const minuteNew = INDEX_CODES.filter(code => !minuteLatest.has(code)).length;
