@@ -38,6 +38,8 @@ market index update
   -> MySQL upsert + health check
 ```
 
+The combined orchestrator was verified on the Windows/CYBOS host on 2026-08-28 with 32-bit Python and an active `CpUtil.CpCybos` connection. `npm run data:update` completed successfully through daily + minute + market-index. Before 20:00 KST, the same run keeps the current unfinished session excluded while still allowing completed historical catch-up.
+
 The batch file pauses at the end so success/failure remains visible. Internal update scripts may change over time; `UPDATE_MARKET_DATA.bat` is the durable human-facing entrypoint.
 
 Equivalent command-line entrypoint:
