@@ -1,5 +1,9 @@
 import { createMySqlPool } from '../src/db/mysql.mjs';
-import { latestEligibleUsCalendarDate, parseNasdaqHistoricalPayload, SOX_INDEX_CODE } from '../src/data/nasdaqIndexHistory.mjs';
+import {
+  latestEligibleUsCalendarDate,
+  parseNasdaqHistoricalPayload,
+  SOX_INDEX_CODE,
+} from '../src/data/nasdaqIndexHistory.mjs';
 
 function isoAddDays(iso, days) {
   const d = new Date(`${iso}T00:00:00Z`);
@@ -65,72 +69,71 @@ try {
   const toDate = latestEligibleUsCalendarDate();
   if (fromDate > toDate) {
     console.log(`[PASS] SOX daily already current latest=${latest} eligible_us_calendar_date=${toDate}`);
-    process.exit(0);
-  }
+  } else {
+    const rows = await fetchNasdaqHistory(fromDate, toDate);
+    const eligibleRows = rows.filter(row => row.tradingDate >= fromDate && row.tradingDate <= toDate);
 
-  const rows = await fetchNasdaqHistory(fromDate, toDate);
-  const eligibleRows = rows.filter(row => row.tradingDate >= fromDate && row.tradingDate <= toDate);
-
-  const [run] = await pool.execute(
-    `INSERT INTO data_ingestion_run (dataset_id, source_provider, source_location, status)
-     VALUES ('global-market-index-sox', 'NASDAQ', ?, 'RUNNING')`,
-    [`https://api.nasdaq.com/api/quote/${SOX_INDEX_CODE}/historical`],
-  );
-  runId = run.insertId;
-
-  let inserted = 0;
-  let updated = 0;
-  if (eligibleRows.length) {
-    const [existingRows] = await pool.query(
-      `SELECT DATE_FORMAT(trading_date, '%Y-%m-%d') AS trading_date
-       FROM market_index_daily
-       WHERE index_code=? AND trading_date BETWEEN ? AND ?`,
-      [SOX_INDEX_CODE, eligibleRows[0].tradingDate, eligibleRows.at(-1).tradingDate],
+    const [run] = await pool.execute(
+      `INSERT INTO data_ingestion_run (dataset_id, source_provider, source_location, status)
+       VALUES ('global-market-index-sox', 'NASDAQ', ?, 'RUNNING')`,
+      [`https://api.nasdaq.com/api/quote/${SOX_INDEX_CODE}/historical`],
     );
-    const existing = new Set(existingRows.map(row => String(row.trading_date)));
+    runId = run.insertId;
 
-    for (let offset = 0; offset < eligibleRows.length; offset += 500) {
-      const chunk = eligibleRows.slice(offset, offset + 500);
-      const placeholders = chunk.map(() => '(?,?,?,?,?,?,?,?)').join(',');
-      const values = [];
-      for (const row of chunk) {
-        values.push(
-          SOX_INDEX_CODE,
-          row.tradingDate,
-          row.open,
-          row.high,
-          row.low,
-          row.close,
-          row.volume,
-          'NASDAQ',
+    let inserted = 0;
+    let updated = 0;
+    if (eligibleRows.length) {
+      const [existingRows] = await pool.query(
+        `SELECT DATE_FORMAT(trading_date, '%Y-%m-%d') AS trading_date
+         FROM market_index_daily
+         WHERE index_code=? AND trading_date BETWEEN ? AND ?`,
+        [SOX_INDEX_CODE, eligibleRows[0].tradingDate, eligibleRows.at(-1).tradingDate],
+      );
+      const existing = new Set(existingRows.map(row => String(row.trading_date)));
+
+      for (let offset = 0; offset < eligibleRows.length; offset += 500) {
+        const chunk = eligibleRows.slice(offset, offset + 500);
+        const placeholders = chunk.map(() => '(?,?,?,?,?,?,?,?)').join(',');
+        const values = [];
+        for (const row of chunk) {
+          values.push(
+            SOX_INDEX_CODE,
+            row.tradingDate,
+            row.open,
+            row.high,
+            row.low,
+            row.close,
+            row.volume,
+            'NASDAQ',
+          );
+        }
+        await pool.query(
+          `INSERT INTO market_index_daily
+           (index_code, trading_date, open, high, low, close, volume, source_provider)
+           VALUES ${placeholders}
+           ON DUPLICATE KEY UPDATE
+             open=VALUES(open), high=VALUES(high), low=VALUES(low), close=VALUES(close),
+             volume=VALUES(volume), source_provider=VALUES(source_provider)`,
+          values,
         );
       }
-      await pool.query(
-        `INSERT INTO market_index_daily
-         (index_code, trading_date, open, high, low, close, volume, source_provider)
-         VALUES ${placeholders}
-         ON DUPLICATE KEY UPDATE
-           open=VALUES(open), high=VALUES(high), low=VALUES(low), close=VALUES(close),
-           volume=VALUES(volume), source_provider=VALUES(source_provider)`,
-        values,
-      );
+      updated = eligibleRows.filter(row => existing.has(row.tradingDate)).length;
+      inserted = eligibleRows.length - updated;
     }
-    updated = eligibleRows.filter(row => existing.has(row.tradingDate)).length;
-    inserted = eligibleRows.length - updated;
+
+    await pool.execute(
+      `UPDATE data_ingestion_run
+       SET completed_at=CURRENT_TIMESTAMP, rows_read=?, rows_inserted=?, rows_updated=?, files_processed=0, status='PASS'
+       WHERE run_id=?`,
+      [eligibleRows.length, inserted, updated, runId],
+    );
+
+    const latestImported = eligibleRows.length ? eligibleRows.at(-1).tradingDate : latest || '(none)';
+    console.log(
+      `[PASS] SOX daily update from=${fromDate} to=${toDate} rows=${eligibleRows.length} ` +
+      `inserted=${inserted} updated=${updated} latest=${latestImported}`,
+    );
   }
-
-  await pool.execute(
-    `UPDATE data_ingestion_run
-     SET completed_at=CURRENT_TIMESTAMP, rows_read=?, rows_inserted=?, rows_updated=?, files_processed=0, status='PASS'
-     WHERE run_id=?`,
-    [eligibleRows.length, inserted, updated, runId],
-  );
-
-  const latestImported = eligibleRows.length ? eligibleRows.at(-1).tradingDate : latest || '(none)';
-  console.log(
-    `[PASS] SOX daily update from=${fromDate} to=${toDate} rows=${eligibleRows.length} ` +
-    `inserted=${inserted} updated=${updated} latest=${latestImported}`,
-  );
 } catch (error) {
   if (runId) {
     try {
