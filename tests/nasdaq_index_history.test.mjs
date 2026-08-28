@@ -25,13 +25,25 @@ test('parseNasdaqHistoricalPayload normalizes Nasdaq SOX rows ascending', () => 
   assert.equal(rows[1].close, 7050.3);
 });
 
-test('parseNasdaqHistoricalPayload rejects malformed OHLC', () => {
+test('parseNasdaqHistoricalPayload preserves positive provider OHLC even when range is internally inconsistent', () => {
   const payload = {
     data: { tradesTable: { rows: [
-      { date: '08/28/2026', open: '100', high: '99', low: '95', close: '98', volume: '1' },
+      { date: '07/21/2026', open: '100', high: '101', low: '99.5', close: '99.4', volume: '--' },
     ] } },
   };
-  assert.throws(() => parseNasdaqHistoricalPayload(payload), /high is below OHLC maximum/);
+  const [row] = parseNasdaqHistoricalPayload(payload);
+  assert.equal(row.tradingDate, '2026-07-21');
+  assert.equal(row.low, 99.5);
+  assert.equal(row.close, 99.4);
+});
+
+test('parseNasdaqHistoricalPayload still rejects non-positive OHLC', () => {
+  const payload = {
+    data: { tradesTable: { rows: [
+      { date: '08/28/2026', open: '100', high: '101', low: '0', close: '98', volume: '1' },
+    ] } },
+  };
+  assert.throws(() => parseNasdaqHistoricalPayload(payload), /non-positive OHLC/);
 });
 
 test('latestEligibleUsCalendarDate respects New York close buffer during DST', () => {
