@@ -60,9 +60,16 @@ export function parseNasdaqHistoricalPayload(payload, { code = SOX_INDEX_CODE } 
     const close = numberValue(rowValue(raw, 'close', 'closePrice', 'last'), `${code}:${tradingDate}:close`);
     const volumeNumber = numberValue(rowValue(raw, 'volume', 'shareVolume'), `${code}:${tradingDate}:volume`, { allowMissing: true });
     const volume = Math.max(0, Math.trunc(volumeNumber));
-    if (Math.min(open, high, low, close) <= 0) throw new Error(`${code}:${tradingDate} contains non-positive OHLC.`);
-    if (high < Math.max(open, low, close)) throw new Error(`${code}:${tradingDate} high is below OHLC maximum.`);
-    if (low > Math.min(open, high, close)) throw new Error(`${code}:${tradingDate} low is above OHLC minimum.`);
+
+    // Nasdaq's historical index endpoint occasionally publishes an index row whose
+    // reported high/low does not contain open/close (observed for SOX 2026-07-21).
+    // For the SOX rebound signal we must preserve the provider values, not silently
+    // manufacture corrected OHLC. Therefore reject only unusable/non-positive
+    // levels here; downstream strategy work is based primarily on completed closes.
+    if (Math.min(open, high, low, close) <= 0) {
+      throw new Error(`${code}:${tradingDate} contains non-positive OHLC.`);
+    }
+
     return { tradingDate, open, high, low, close, volume };
   });
 
