@@ -18,6 +18,8 @@
     "data:index:import": "node ./scripts/import-korean-market-index.mjs",
     "data:index:check": "node ./scripts/check-korean-market-index.mjs",
     "data:index:update": "node ./scripts/update-korean-market-index.mjs",
+    "data:sox:update": "node ./scripts/update-sox-daily.mjs",
+    "data:sox:check": "node ./scripts/check-sox-daily.mjs",
     "data:update": "node ./scripts/update-market-data.mjs",
     "test": "node --test ./tests/*.test.mjs"
   },
