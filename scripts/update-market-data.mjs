@@ -43,7 +43,9 @@ try {
   await runDailyUpdate();
   await runNodeScript('scripts/update-korean-equity-minute-1m.mjs', ['--skip-daily-refresh']);
   await runNodeScript('scripts/update-korean-market-index.mjs', ['--skip-daily-refresh']);
-  console.log('[PASS] market data update completed: daily + minute + market-index');
+  await runNodeScript('scripts/update-sox-daily.mjs');
+  await runNodeScript('scripts/check-sox-daily.mjs');
+  console.log('[PASS] market data update completed: daily + minute + market-index + SOX');
 } catch (error) {
   console.error(`[ERROR] market data update failed: ${error?.message ?? String(error)}`);
   process.exitCode = 1;
