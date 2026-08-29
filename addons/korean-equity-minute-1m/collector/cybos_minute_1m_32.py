@@ -61,6 +61,24 @@ def validate_row(row: dict[str, Any]) -> None:
         raise CollectorError(f"LOW_ABOVE_OHLC_MIN:{row['timestamp']}")
 
 
+def is_permanent_symbol_error(exc: BaseException) -> bool:
+    """Return True only for symbol-level errors that retrying cannot repair.
+
+    CYBOS StockChart raises a COM exception at SetInputValue(0, symbol) for stale,
+    delisted, or otherwise invalid stock-master codes.  Those must not abort a
+    multi-symbol historical backfill; they are reported and left as explicit
+    no-data symbols for the coverage audit.  Transport/status/pagination/data
+    integrity errors remain fatal so genuine collection failures are not hidden.
+    """
+    text = str(exc)
+    lowered = text.lower()
+    return (
+        "유효하지 않은 종목코드" in text
+        or "유효하지 않은 종목코 드" in text
+        or "invalid stock code" in lowered
+    )
+
+
 class CybosMinute:
     def __init__(self, max_attempts: int) -> None:
         if struct.calcsize("P") * 8 != 32:
@@ -146,6 +164,9 @@ class CybosMinute:
                     by_stamp[row["timestamp"]] = row
                 return [by_stamp[key] for key in sorted(by_stamp)]
             except Exception as exc:
+                # A stale/delisted invalid symbol will never become valid by retrying.
+                if is_permanent_symbol_error(exc):
+                    raise CollectorError(f"PERMANENT_INVALID_SYMBOL:{symbol}:{exc}") from exc
                 last_error = exc
                 if attempt < self.max_attempts:
                     time.sleep(min(3.0, 0.4 * (2 ** (attempt - 1))))
@@ -185,14 +206,27 @@ def main() -> int:
     collector = CybosMinute(args.max_attempts)
     files = 0
     rows_total = 0
+    skipped_invalid: list[str] = []
     for code in codes:
-        rows = collector.range_rows(code, start_day, end_day, exchange=args.exchange, adjusted=str(args.adjusted).lower() == "true")
+        try:
+            rows = collector.range_rows(code, start_day, end_day, exchange=args.exchange, adjusted=str(args.adjusted).lower() == "true")
+        except CollectorError as exc:
+            if "PERMANENT_INVALID_SYMBOL:" in str(exc):
+                skipped_invalid.append(code)
+                print(f"[WARN] skipped permanent invalid CYBOS symbol={code}", file=sys.stderr)
+                continue
+            raise
         if not rows:
             continue
         write_csv(output / f"{code}.csv", rows)
         files += 1
         rows_total += len(rows)
-    print(f"[PASS] cybos minute collected files={files} rows={rows_total} range={start_day.isoformat()}..{end_day.isoformat()}")
+    print(
+        f"[PASS] cybos minute collected files={files} rows={rows_total} "
+        f"skipped_invalid={len(skipped_invalid)} range={start_day.isoformat()}..{end_day.isoformat()}"
+    )
+    if skipped_invalid:
+        print(f"[WARN] permanent invalid CYBOS symbols={','.join(skipped_invalid)}", file=sys.stderr)
     return 0
 
 
