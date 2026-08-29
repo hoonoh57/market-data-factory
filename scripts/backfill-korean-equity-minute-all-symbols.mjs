@@ -1,4 +1,4 @@
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdir, rm, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fetchStockMaster } from '../src/data/stockMaster.mjs';
@@ -52,6 +52,7 @@ function chunks(values, size) {
   for (let i = 0; i < values.length; i += size) out.push(values.slice(i, i + size));
   return out;
 }
+function seconds(ms) { return Math.round(ms / 10) / 100; }
 
 const from = String(arg('--from', '2026-08-01'));
 const to = String(arg('--to', '2026-08-31'));
@@ -63,6 +64,7 @@ const python32 = process.env.CYBOS_PYTHON32 || 'E:\\Python310-32\\python.exe';
 const collector = path.resolve('addons/korean-equity-minute-1m/collector/cybos_minute_1m_32.py');
 const preflight = path.resolve('addons/korean-equity-minute-1m/collector/check_cybos_connection_32.py');
 const importer = path.resolve('scripts/import-korean-equity-minute-1m.mjs');
+const auditor = path.resolve('scripts/audit-korean-equity-minute-coverage.mjs');
 
 try {
   const master = await fetchStockMaster();
@@ -96,10 +98,14 @@ try {
   } catch (error) {
     throw new Error(
       `CYBOS preflight failed before any backfill work. ${error?.message ?? String(error)}\n` +
-      'Action: start/login to CYBOS Plus in this Windows session, confirm it is connected, then rerun the same command. ' +
+      'Action: run CYBOS Plus and this PowerShell at the same Windows privilege level, confirm login/connect, then rerun. ' +
       'The backfill is idempotent, so rerunning is safe.',
     );
   }
+
+  const totalStarted = Date.now();
+  const missing = new Set();
+  let batchesCompleted = 0;
 
   for (const slice of slices) {
     const monthRoot = path.resolve(`.runtime/cybos/minute/all-symbol-backfill/${slice.month}`);
@@ -110,6 +116,7 @@ try {
       const staging = path.join(monthRoot, `batch-${String(batchNo).padStart(4, '0')}`);
       await rm(staging, { recursive: true, force: true });
       await mkdir(staging, { recursive: true });
+      const started = Date.now();
       console.log(`[BACKFILL] month=${slice.month} batch=${batchNo} symbols=${batch.length} range=${slice.from}..${slice.to}`);
       await run(python32, [
         collector,
@@ -121,11 +128,35 @@ try {
         '--adjusted', 'true',
         '--max-attempts', '3',
       ]);
+
+      const files = (await readdir(staging)).filter(file => /^[0-9A-Z]{6}\.csv$/i.test(file));
+      const collectedCodes = new Set(files.map(file => file.slice(0, 6).toUpperCase()));
+      const missingBatch = batch.filter(code => !collectedCodes.has(code));
+      for (const code of missingBatch) missing.add(`${slice.month}:${code}`);
+      if (missingBatch.length) {
+        console.log(`[WARN] no minute rows/files month=${slice.month} batch=${batchNo} symbols=${missingBatch.join(',')}`);
+      }
+
       await run(process.execPath, [importer, '--source', staging]);
+      batchesCompleted += 1;
+      console.log(
+        `[BATCH-DONE] month=${slice.month} batch=${batchNo} requested=${batch.length} files=${files.length} ` +
+        `elapsed_seconds=${seconds(Date.now() - started)}`,
+      );
       if (!keepStaging) await rm(staging, { recursive: true, force: true });
     }
   }
-  console.log(`[PASS] all-symbol minute backfill complete symbols=${codes.length} range=${from}..${to}`);
+
+  console.log(
+    `[PASS] all-symbol minute backfill complete symbols=${codes.length} batches=${batchesCompleted} ` +
+    `range=${from}..${to} elapsed_seconds=${seconds(Date.now() - totalStarted)}`,
+  );
+  if (missing.size) {
+    console.log(`[WARN] no-data symbol-month count=${missing.size} entries=${[...missing].join(',')}`);
+  }
+
+  console.log('[AUDIT] measuring post-backfill coverage...');
+  await run(process.execPath, [auditor, '--from', from, '--to', to]);
 } catch (error) {
   console.error(`[ERROR] all-symbol minute backfill failed: ${error?.message ?? String(error)}`);
   process.exitCode = 1;
