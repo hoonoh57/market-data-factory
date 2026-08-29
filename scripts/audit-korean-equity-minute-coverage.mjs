@@ -30,6 +30,9 @@ try {
     [from, to],
   );
 
+  // Coverage is counted only inside the point-in-time daily eligible universe.
+  // Minute rows that do not have a matching daily instrument-day are reported separately
+  // instead of inflating the coverage numerator.
   const [minuteRows] = await pool.query(
     `SELECT DATE_FORMAT(m.trading_date, '%Y-%m-%d') AS trading_date,
             m.instrument_id,
@@ -37,9 +40,26 @@ try {
             DATE_FORMAT(MIN(m.bar_timestamp), '%H:%i:%s') AS first_bar,
             DATE_FORMAT(MAX(m.bar_timestamp), '%H:%i:%s') AS last_bar
      FROM korean_equity_minute_1m m
+     JOIN korean_equity_daily d
+       ON d.instrument_id = m.instrument_id
+      AND d.trading_date = m.trading_date
      WHERE m.trading_date BETWEEN ? AND ?
      GROUP BY m.trading_date, m.instrument_id
      ORDER BY m.trading_date, m.instrument_id`,
+    [from, to],
+  );
+
+  const [[orphanRow]] = await pool.query(
+    `SELECT COUNT(*) AS orphan_instrument_days
+     FROM (
+       SELECT DISTINCT m.instrument_id, m.trading_date
+       FROM korean_equity_minute_1m m
+       LEFT JOIN korean_equity_daily d
+         ON d.instrument_id = m.instrument_id
+        AND d.trading_date = m.trading_date
+       WHERE m.trading_date BETWEEN ? AND ?
+         AND d.instrument_id IS NULL
+     ) x`,
     [from, to],
   );
 
@@ -83,13 +103,16 @@ try {
   }
 
   const [monthRows] = await pool.query(
-    `SELECT DATE_FORMAT(trading_date, '%Y-%m') AS month,
+    `SELECT DATE_FORMAT(m.trading_date, '%Y-%m') AS month,
             COUNT(*) AS row_count,
-            COUNT(DISTINCT instrument_id) AS instrument_count,
-            COUNT(DISTINCT trading_date) AS trading_days
-     FROM korean_equity_minute_1m
-     WHERE trading_date BETWEEN ? AND ?
-     GROUP BY DATE_FORMAT(trading_date, '%Y-%m')
+            COUNT(DISTINCT m.instrument_id) AS instrument_count,
+            COUNT(DISTINCT m.trading_date) AS trading_days
+     FROM korean_equity_minute_1m m
+     JOIN korean_equity_daily d
+       ON d.instrument_id = m.instrument_id
+      AND d.trading_date = m.trading_date
+     WHERE m.trading_date BETWEEN ? AND ?
+     GROUP BY DATE_FORMAT(m.trading_date, '%Y-%m')
      ORDER BY month`,
     [from, to],
   );
@@ -99,14 +122,17 @@ try {
     requested_range: { from, to },
     methodology: {
       universe_denominator: 'distinct instruments in korean_equity_daily per trading date',
-      typical_bar_count: 'median bar_count among instruments that have minute rows on that date',
+      coverage_numerator: 'distinct minute instrument-days INNER JOINed to the same daily eligible instrument-day',
+      typical_bar_count: 'median bar_count among eligible instruments that have minute rows on that date',
       complete_rule: 'bar_count >= 95% of that date median; this is a coverage diagnostic, not an exchange-session truth contract',
     },
     summary: {
       trading_days: daySummaries.length,
       eligible_instrument_days: totalEligible,
       covered_instrument_days: totalCovered,
+      missing_instrument_days: Math.max(0, totalEligible - totalCovered),
       overall_instrument_day_coverage_ratio: totalEligible ? totalCovered / totalEligible : null,
+      orphan_minute_instrument_days: Number(orphanRow?.orphan_instrument_days ?? 0),
     },
     months: monthRows.map(row => ({
       month: String(row.month),
