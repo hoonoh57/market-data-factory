@@ -61,6 +61,7 @@ const execute = flag('--execute');
 const keepStaging = flag('--keep-staging');
 const python32 = process.env.CYBOS_PYTHON32 || 'E:\\Python310-32\\python.exe';
 const collector = path.resolve('addons/korean-equity-minute-1m/collector/cybos_minute_1m_32.py');
+const preflight = path.resolve('addons/korean-equity-minute-1m/collector/check_cybos_connection_32.py');
 const importer = path.resolve('scripts/import-korean-equity-minute-1m.mjs');
 
 try {
@@ -86,6 +87,18 @@ try {
   if (!execute) {
     console.log('[DRY-RUN] Add --execute to start CYBOS collection/import.');
     process.exit(0);
+  }
+
+  console.log(`[PREFLIGHT] checking CYBOS connection with ${python32}`);
+  try {
+    const checked = await run(python32, [preflight], { capture: true });
+    if (checked.stdout.trim()) console.log(checked.stdout.trim());
+  } catch (error) {
+    throw new Error(
+      `CYBOS preflight failed before any backfill work. ${error?.message ?? String(error)}\n` +
+      'Action: start/login to CYBOS Plus in this Windows session, confirm it is connected, then rerun the same command. ' +
+      'The backfill is idempotent, so rerunning is safe.',
+    );
   }
 
   for (const slice of slices) {
