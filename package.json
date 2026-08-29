@@ -14,6 +14,8 @@
     "data:minute:import": "node ./scripts/import-korean-equity-minute-1m.mjs",
     "data:minute:check": "node ./scripts/check-korean-equity-minute-1m.mjs",
     "data:minute:update": "node ./scripts/update-korean-equity-minute-1m.mjs",
+    "data:minute:audit": "node ./scripts/audit-korean-equity-minute-coverage.mjs",
+    "data:minute:backfill-all": "node ./scripts/backfill-korean-equity-minute-all-symbols.mjs",
     "data:index:schema": "node ./scripts/apply-korean-market-index-schema.mjs",
     "data:index:import": "node ./scripts/import-korean-market-index.mjs",
     "data:index:check": "node ./scripts/check-korean-market-index.mjs",
