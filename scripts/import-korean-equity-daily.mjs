@@ -19,8 +19,8 @@ function parseUniverse(text) {
     const values = parseCsvLine(line);
     if (values.length !== required.length) continue;
     const rawCode = String(values[0] ?? '').trim();
-    const code = rawCode.startsWith('A') ? rawCode.slice(1) : rawCode;
-    if (!/^\d{6}$/.test(code)) continue;
+    const code = (rawCode.startsWith('A') ? rawCode.slice(1) : rawCode).toUpperCase();
+    if (!/^[0-9A-Z]{6}$/.test(code)) continue;
     out.set(code, { name: String(values[1] ?? '').trim() || null, market: String(values[2] ?? '').trim() || null });
   }
   return out;
@@ -47,7 +47,7 @@ try {
   try { universe = parseUniverse(await readFile(path.join(sourceDir, 'universe.csv'), 'utf8')); } catch {}
 
   const files = (await readdir(sourceDir)).filter(file => stockCodeFromDailyFilename(file)).sort();
-  if (!files.length) throw new Error(`No six-digit daily CSV files found in ${sourceDir}`);
+  if (!files.length) throw new Error(`No six-character daily CSV files found in ${sourceDir}`);
 
   console.log(`[DAILY IMPORT] start files=${files.length}`);
   for (const [fileIndex, file] of files.entries()) {
