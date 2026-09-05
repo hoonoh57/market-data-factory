@@ -11,13 +11,11 @@ Provide one durable MySQL-backed daily-bar contract for research projects so the
 - provider: CYBOS Plus `CpSysDib.StockChart`
 - instrument scope: regular KOSPI/KOSDAQ equities returned by `CpCodeMgr`
 - SPAC: excluded by provider metadata, not name heuristics
-- exchange selector: `K` (KRX)
+- exchange selector: `A`
 - adjusted price: `true`
 - source fields: date, open, high, low, close, volume, amount
 - current recovered collection start: 2021-01-01
 - completed-session guard: requests for `today` stop at the previous day before 20:00 KST
-
-The daily table has one row per instrument and trading date, so the long-history collector is pinned to KRX. CYBOS `StockChart` exchange selector `A` spans the multi-venue KRX/NXT view and is not used for this daily SSOT.
 
 ## MySQL contract
 
