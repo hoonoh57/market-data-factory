@@ -177,8 +177,17 @@ class Cybos:
                     }
                     if start.isoformat() <= row["date"] <= end.isoformat():
                         rows.append(row)
-                rows.sort(key=lambda row: row["date"])
-                return rows
+                by_day: dict[str, dict[str, Any]] = {}
+                for row in rows:
+                    day = row["date"]
+                    current = by_day.get(day)
+                    if current is None:
+                        by_day[day] = row
+                    elif current != row:
+                        raise DataValidationError(
+                            f"DUPLICATE_DATE_DRIFT:{code}:{day}:first={current}:duplicate={row}"
+                        )
+                return [by_day[day] for day in sorted(by_day)]
             except Exception as exc:
                 last_error = exc
                 if attempt < self.max_attempts:
