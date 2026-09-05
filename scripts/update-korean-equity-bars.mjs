@@ -140,7 +140,7 @@ async function collectDaily(plans, end, staging, python32) {
     for (const batch of batches(codes)) {
       await writeFile(configPath, JSON.stringify({
         dataset: 'daily', python32, outputDir: staging, dateFrom: from, dateTo: end,
-        exchange: 'A', adjusted: true, maxAttempts: 3,
+        exchange: 'K', adjusted: true, maxAttempts: 3,
       }, null, 2));
       emit('batch_start', { type: 'daily', from, end, symbols: batch.length, completed, total: plans.length });
       await run(python32, [
