@@ -17,7 +17,10 @@ test('DAILY-CSV-003 rejects invalid OHLC', () => {
   assert.throws(() => parseDailyCsv('date,open,high,low,close,volume,amount\n2026-08-21,100,90,80,95,1,95\n'), /high is below/);
 });
 
-test('DAILY-CSV-004 recognizes six-digit stock files only', () => {
+test('DAILY-CSV-004 recognizes six-character stock files only', () => {
   assert.equal(stockCodeFromDailyFilename('005930.csv'), '005930');
+  assert.equal(stockCodeFromDailyFilename('0001A0.csv'), '0001A0');
+  assert.equal(stockCodeFromDailyFilename('0001a0.csv'), '0001A0');
   assert.equal(stockCodeFromDailyFilename('universe.csv'), null);
+  assert.equal(stockCodeFromDailyFilename('12345.csv'), null);
 });
