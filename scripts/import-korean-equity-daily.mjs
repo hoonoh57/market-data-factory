@@ -49,7 +49,8 @@ try {
   const files = (await readdir(sourceDir)).filter(file => stockCodeFromDailyFilename(file)).sort();
   if (!files.length) throw new Error(`No six-digit daily CSV files found in ${sourceDir}`);
 
-  for (const file of files) {
+  console.log(`[DAILY IMPORT] start files=${files.length}`);
+  for (const [fileIndex, file] of files.entries()) {
     const code = stockCodeFromDailyFilename(file);
     const filePath = path.join(sourceDir, file);
     const rows = parseDailyCsv(await readFile(filePath, 'utf8'), { source: file });
@@ -114,6 +115,9 @@ try {
       rowsUpdated += rows.filter(row => existingDates.has(row.tradingDate)).length;
       rowsInserted += rows.filter(row => !existingDates.has(row.tradingDate)).length;
       filesProcessed += 1;
+      if ((fileIndex + 1) % 25 === 0 || fileIndex + 1 === files.length) {
+        console.log(`[DAILY IMPORT] ${fileIndex + 1}/${files.length} rows=${rowsRead} inserted=${rowsInserted} updated=${rowsUpdated}`);
+      }
     } catch (error) {
       await connection.rollback();
       throw error;

@@ -61,6 +61,24 @@ def atomic_json(path: Path, value: Any) -> None:
     atomic_text(path, json.dumps(value, ensure_ascii=False, indent=2) + "\n")
 
 
+def emit_progress(completed: int, total: int, code: str, status: str, **extra: Any) -> None:
+    payload = {
+        "event": "collector_progress", "type": "daily", "completed": completed,
+        "total": total, "percent": round(completed * 100 / total, 1) if total else 100.0,
+        "code": code, "status": status, **extra,
+    }
+    print("BAR_EVENT " + json.dumps(payload, ensure_ascii=False), flush=True)
+
+
+def emit_progress(completed: int, total: int, code: str, status: str, **extra: Any) -> None:
+    payload = {
+        "event": "collector_progress", "type": "daily", "completed": completed,
+        "total": total, "percent": round(completed * 100 / total, 1) if total else 100.0,
+        "code": code, "status": status, **extra,
+    }
+    print("BAR_EVENT " + json.dumps(payload, ensure_ascii=False), flush=True)
+
+
 def read_json(path: Path, default: Any) -> Any:
     if not path.exists():
         return default
@@ -295,12 +313,11 @@ def main() -> int:
 
     requested_symbols = [item.strip() for item in args.symbols.split(",") if item.strip()]
     if requested_symbols:
-        allowed = {row["code"] for row in universe}
-        unknown = [code for code in requested_symbols if code not in allowed]
-        if unknown:
-            raise DownloadError(f"Requested symbols are outside regular-stock universe: {unknown}")
+        by_code = {row["code"]: row for row in universe}
         selected = set(requested_symbols)
-        universe = [row for row in universe if row["code"] in selected]
+        # The DB instrument table is the requested source of truth. Keep stale or
+        # delisted codes in the plan and let CYBOS report whether they are usable.
+        universe = [by_code.get(code, {"code": code, "name": "", "market": ""}) for code in sorted(selected)]
 
     state_path = output_dir / ".state.json"
     expected_definition = definition_id(request)
@@ -319,10 +336,15 @@ def main() -> int:
     transport_failures: list[tuple[str, str]] = []
     rejected_dir = output_dir / "rejected"
 
-    for item in universe:
+    total = len(universe)
+    print(f"[DAILY] start symbols={total} target_end={target_end.isoformat()}", flush=True)
+    for index, item in enumerate(universe, start=1):
         code = item["code"]
         if code in state["rejected"]:
             skipped += 1
+            print(f"[DAILY] {index}/{total} code={code} status=previously_rejected", flush=True)
+            emit_progress(index, total, code, "previously_rejected")
+            emit_progress(index, total, code, "previously_rejected")
             continue
         file_code = code[1:] if code.startswith("A") else code
         path = output_dir / f"{file_code}.csv"
@@ -331,29 +353,44 @@ def main() -> int:
         symbol_start = next_day(completed) if completed else (next_day(existing[-1]["date"]) if existing else start)
         if symbol_start > target_end:
             skipped += 1
+            print(f"[DAILY] {index}/{total} code={code} status=current", flush=True)
+            emit_progress(index, total, code, "current")
+            emit_progress(index, total, code, "current")
             continue
         try:
+            print(
+                f"[DAILY] {index}/{total} code={code} range={symbol_start.isoformat()}..{target_end.isoformat()} status=downloading",
+                flush=True,
+            )
             incoming = cybos.daily_rows(code, symbol_start, target_end, exchange=str(request.get("exchange", "A")), adjusted=bool(request.get("adjusted", True)))
-            validate_rows(incoming, allow_empty=bool(existing))
+            validate_rows(incoming, allow_empty=True)
             merged = merge_rows(existing, incoming) if incoming else existing
-            if not merged:
-                raise DataValidationError("NO_DATA")
-            write_csv_rows(path, merged)
+            if merged:
+                write_csv_rows(path, merged)
             state["completedThrough"][code] = target_end.isoformat()
             state["transportFailures"].pop(code, None)
             atomic_json(state_path, state)
             accepted += 1
+            print(f"[DAILY] {index}/{total} code={code} rows={len(incoming)} status=done", flush=True)
+            emit_progress(index, total, code, "done", rows=len(incoming))
+            emit_progress(index, total, code, "done", rows=len(incoming))
         except DataValidationError as exc:
             archive_accepted(path, rejected_dir)
             state["rejected"][code] = {"reason": str(exc), "at": datetime.now(KST).isoformat()}
             state["completedThrough"].pop(code, None)
             state["transportFailures"].pop(code, None)
             atomic_json(state_path, state)
+            print(f"[DAILY] {index}/{total} code={code} status=rejected error={exc}", file=sys.stderr, flush=True)
+            emit_progress(index, total, code, "rejected", error=str(exc))
+            emit_progress(index, total, code, "rejected", error=str(exc))
         except Exception as exc:
             reason = str(exc)
             state["transportFailures"][code] = {"reason": reason, "at": datetime.now(KST).isoformat()}
             atomic_json(state_path, state)
             transport_failures.append((code, reason))
+            print(f"[DAILY] {index}/{total} code={code} status=failed error={reason}", file=sys.stderr, flush=True)
+            emit_progress(index, total, code, "failed", error=reason)
+            emit_progress(index, total, code, "failed", error=reason)
 
     atomic_json(output_dir / "rejected.json", state["rejected"])
     atomic_json(output_dir / "manifest.json", {

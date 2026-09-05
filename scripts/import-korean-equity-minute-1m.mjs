@@ -28,7 +28,8 @@ try {
   const files = (await readdir(sourceDir)).filter(file => stockCodeFromMinuteFilename(file)).sort();
   if (!files.length) throw new Error(`No six-character minute CSV files found in ${sourceDir}`);
 
-  for (const file of files) {
+  console.log(`[MINUTE IMPORT] start files=${files.length}`);
+  for (const [fileIndex, file] of files.entries()) {
     const code = stockCodeFromMinuteFilename(file);
     const filePath = path.join(sourceDir, file);
     const rows = parseMinuteCsv(await readFile(filePath, 'utf8'), { source: file });
@@ -94,6 +95,9 @@ try {
       rowsUpdated += updated;
       rowsInserted += rows.length - updated;
       filesProcessed += 1;
+      if ((fileIndex + 1) % 10 === 0 || fileIndex + 1 === files.length) {
+        console.log(`[MINUTE IMPORT] ${fileIndex + 1}/${files.length} rows=${rowsRead} inserted=${rowsInserted} updated=${rowsUpdated}`);
+      }
     } catch (error) {
       await connection.rollback();
       throw error;

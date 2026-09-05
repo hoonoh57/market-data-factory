@@ -93,6 +93,8 @@ async function collectMode({ mode, plan, sessionDate, staging, python32, collect
 
 const decision = minuteUpdateDecision();
 const skipDailyRefresh = process.argv.includes('--skip-daily-refresh');
+const cliArg = name => { const i = process.argv.indexOf(`--${name}`); return i >= 0 ? process.argv[i + 1] : null; };
+const fullRefresh = cliArg('mode') === 'full';
 const pool = createMySqlPool();
 
 try {
@@ -103,7 +105,7 @@ try {
   await requireTable(pool, 'market_index_daily');
   await requireTable(pool, 'market_index_minute_1m');
 
-  const sessionDate = await scalarDate(
+  const resolvedSessionDate = await scalarDate(
     pool,
     `SELECT DATE_FORMAT(MAX(trading_date), '%Y-%m-%d') AS value
      FROM korean_equity_daily
@@ -111,6 +113,7 @@ try {
     [decision.eligibleCalendarDate],
     `latest completed trading session on or before ${decision.eligibleCalendarDate}`,
   );
+  const sessionDate = cliArg('end') || resolvedSessionDate;
   const dailyInitialFrom = await scalarDate(
     pool,
     `SELECT DATE_FORMAT(MIN(trading_date), '%Y-%m-%d') AS value
@@ -128,18 +131,19 @@ try {
     'initial market index minute backfill date',
   );
 
-  const dailyLatest = await latestByIndex(pool, 'market_index_daily');
-  const minuteLatest = await latestByIndex(pool, 'market_index_minute_1m');
+  const dailyLatest = fullRefresh ? new Map() : await latestByIndex(pool, 'market_index_daily');
+  const minuteLatest = fullRefresh ? new Map() : await latestByIndex(pool, 'market_index_minute_1m');
+  const requestedStart = cliArg('start');
   const dailyPlan = buildIndexUpdatePlan({
     codes: INDEX_CODES,
     latestByCode: dailyLatest,
-    initialFrom: dailyInitialFrom,
+    initialFrom: requestedStart || dailyInitialFrom,
     sessionDate,
   });
   const minutePlan = buildIndexUpdatePlan({
     codes: INDEX_CODES,
     latestByCode: minuteLatest,
-    initialFrom: minuteInitialFrom,
+    initialFrom: requestedStart || minuteInitialFrom,
     sessionDate,
   });
 

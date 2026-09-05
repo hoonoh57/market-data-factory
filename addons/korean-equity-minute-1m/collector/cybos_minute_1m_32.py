@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import os
 import struct
 import sys
@@ -17,6 +18,15 @@ CSV_FIELDS = ("timestamp", "open", "high", "low", "close", "volume", "amount")
 
 class CollectorError(RuntimeError):
     pass
+
+
+def emit_progress(completed: int, total: int, code: str, status: str, **extra: Any) -> None:
+    payload = {
+        "event": "collector_progress", "type": "minute", "completed": completed,
+        "total": total, "percent": round(completed * 100 / total, 1) if total else 100.0,
+        "code": code, "status": status, **extra,
+    }
+    print("BAR_EVENT " + json.dumps(payload, ensure_ascii=False), flush=True)
 
 
 def parse_day(value: str) -> date:
@@ -207,20 +217,28 @@ def main() -> int:
     files = 0
     rows_total = 0
     skipped_invalid: list[str] = []
-    for code in codes:
+    total = len(codes)
+    print(f"[MINUTE] start symbols={total} range={start_day.isoformat()}..{end_day.isoformat()}", flush=True)
+    for index, code in enumerate(codes, start=1):
         try:
+            print(f"[MINUTE] {index}/{total} code={code} status=downloading", flush=True)
             rows = collector.range_rows(code, start_day, end_day, exchange=args.exchange, adjusted=str(args.adjusted).lower() == "true")
         except CollectorError as exc:
             if "PERMANENT_INVALID_SYMBOL:" in str(exc):
                 skipped_invalid.append(code)
-                print(f"[WARN] skipped permanent invalid CYBOS symbol={code}", file=sys.stderr)
+                print(f"[MINUTE] {index}/{total} code={code} status=invalid", file=sys.stderr, flush=True)
+                emit_progress(index, total, code, "invalid")
                 continue
             raise
         if not rows:
+            print(f"[MINUTE] {index}/{total} code={code} rows=0 status=done", flush=True)
+            emit_progress(index, total, code, "done", rows=0)
             continue
         write_csv(output / f"{code}.csv", rows)
         files += 1
         rows_total += len(rows)
+        print(f"[MINUTE] {index}/{total} code={code} rows={len(rows)} status=done", flush=True)
+        emit_progress(index, total, code, "done", rows=len(rows))
     print(
         f"[PASS] cybos minute collected files={files} rows={rows_total} "
         f"skipped_invalid={len(skipped_invalid)} range={start_day.isoformat()}..{end_day.isoformat()}"

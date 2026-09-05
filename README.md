@@ -1,5 +1,9 @@
 # market-data-factory
 
+> Python UI에서 일봉·분봉을 호출할 때는 기존 collector/importer를 조합하지 말고
+> 루트의 `market_data_api.py`만 사용한다. 전체 갱신, 증분 갱신, 상태조회와
+> 진행 이벤트 규격은 [`docs/PYTHON_UI_BAR_API.md`](docs/PYTHON_UI_BAR_API.md)에 정의되어 있다.
+
 Shared market-data SSOT and Data Add-on factory.
 
 The repository owns dataset contracts, collectors/updaters, schema migrations, access examples, integrity checks, and the Data Add-on catalog. Actual market data lives in MySQL rather than inside experiment-project folders.
@@ -78,11 +82,14 @@ MYSQL_PORT=3306
 MYSQL_USER=root
 MYSQL_PASSWORD=<real password>
 MYSQL_DATABASE=market_data
+KRX_AUTH_KEY=<KRX Open API authentication key>
 ```
 
 `MYSQL_DATABASE` is optional and defaults to `market_data` when omitted. `MYSQL_URL` is also supported as an optional override for environments that prefer a single connection URL.
 
 `.env` is intentionally ignored by Git and must never be committed. Application code must obtain the connection through `src/db/mysql.mjs`; Data Add-ons must not duplicate credentials or hard-code host/user/password values.
+
+`KRX_AUTH_KEY` is required only for market-cap collection. The collector uses the official KRX Open API and does not use a KRX website ID/password or `pykrx`. The KOSPI and KOSDAQ daily-trading API services must be approved for the key.
 
 ## Bootstrap / verification
 
