@@ -188,6 +188,8 @@ class Cybos:
                             f"DUPLICATE_DATE_DRIFT:{code}:{day}:first={current}:duplicate={row}"
                         )
                 return [by_day[day] for day in sorted(by_day)]
+            except DataValidationError:
+                raise
             except Exception as exc:
                 last_error = exc
                 if attempt < self.max_attempts:
