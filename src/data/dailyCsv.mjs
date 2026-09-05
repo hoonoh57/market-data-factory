@@ -72,6 +72,6 @@ export function parseDailyCsv(text, { source = 'daily.csv' } = {}) {
 
 export function stockCodeFromDailyFilename(file) {
   const name = path.basename(String(file));
-  const match = /^(\d{6})\.csv$/i.exec(name);
-  return match ? match[1] : null;
+  const match = /^([0-9A-Z]{6})\.csv$/i.exec(name);
+  return match ? match[1].toUpperCase() : null;
 }
