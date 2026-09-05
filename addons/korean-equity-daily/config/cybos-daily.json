@@ -4,7 +4,7 @@
   "outputDir": ".runtime/cybos/daily",
   "dateFrom": "2021-01-01",
   "dateTo": "today",
-  "exchange": "A",
+  "exchange": "K",
   "adjusted": true,
   "maxAttempts": 3
 }
