@@ -27,6 +27,17 @@ class DataValidationError(RuntimeError):
     pass
 
 
+def is_permanent_symbol_error(exc: BaseException) -> bool:
+    """Return True only for symbol-level errors that retrying cannot repair."""
+    text = str(exc)
+    lowered = text.lower()
+    return (
+        "유효하지 않은 종목코드" in text
+        or "유효하지 않은 종목코 드" in text
+        or "invalid stock code" in lowered
+    )
+
+
 def parse_day(value: str, *, today: date) -> date:
     text = str(value).strip()
     if text.lower() == "today":
@@ -191,6 +202,8 @@ class Cybos:
             except DataValidationError:
                 raise
             except Exception as exc:
+                if is_permanent_symbol_error(exc):
+                    raise DownloadError(f"PERMANENT_INVALID_SYMBOL:{code}:{exc}") from exc
                 last_error = exc
                 if attempt < self.max_attempts:
                     time.sleep(min(3.0, 0.4 * (2 ** (attempt - 1))))
@@ -344,6 +357,7 @@ def main() -> int:
 
     accepted = 0
     skipped = 0
+    invalid = 0
     transport_failures: list[tuple[str, str]] = []
     rejected_dir = output_dir / "rejected"
 
@@ -396,6 +410,15 @@ def main() -> int:
             emit_progress(index, total, code, "rejected", error=str(exc))
         except Exception as exc:
             reason = str(exc)
+            if "PERMANENT_INVALID_SYMBOL:" in reason:
+                skipped += 1
+                invalid += 1
+                state["completedThrough"].pop(code, None)
+                state["transportFailures"].pop(code, None)
+                atomic_json(state_path, state)
+                print(f"[DAILY] {index}/{total} code={code} status=invalid", file=sys.stderr, flush=True)
+                emit_progress(index, total, code, "invalid")
+                continue
             state["transportFailures"][code] = {"reason": reason, "at": datetime.now(KST).isoformat()}
             atomic_json(state_path, state)
             transport_failures.append((code, reason))
@@ -416,6 +439,7 @@ def main() -> int:
         "universeCount": len(universe),
         "acceptedThisRun": accepted,
         "skippedThisRun": skipped,
+        "invalidThisRun": invalid,
         "rejectedCount": len(state["rejected"]),
         "pendingTransportFailures": len(state["transportFailures"]),
     })
@@ -423,7 +447,7 @@ def main() -> int:
     if transport_failures:
         print("[FAIL] CYBOS daily download incomplete; rerun the same command to resume.", file=sys.stderr)
         return 2
-    print(f"[PASS] cybos daily accepted={accepted} skipped={skipped} rejected={len(state['rejected'])} latest={target_end.isoformat()}")
+    print(f"[PASS] cybos daily accepted={accepted} skipped={skipped} invalid={invalid} rejected={len(state['rejected'])} latest={target_end.isoformat()}")
     return 0
 
 
