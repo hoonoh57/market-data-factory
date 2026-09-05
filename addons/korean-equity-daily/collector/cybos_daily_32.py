@@ -304,10 +304,15 @@ def main() -> int:
     universe = cybos.regular_stock_universe()
     write_universe(output_dir / "universe.csv", universe)
 
-    samsung_rows = cybos.daily_rows(SAMSUNG, start, guarded_end, exchange=str(request.get("exchange", "A")), adjusted=bool(request.get("adjusted", True)))
+    # This probe only discovers the latest completed trading date. Querying the
+    # full historical range is unnecessary and can trigger duplicate-date output
+    # from a long-period StockChart ALL-market request. Keep the actual data
+    # collection range unchanged and bounded only for this calendar probe.
+    probe_start = max(start, guarded_end - timedelta(days=45))
+    samsung_rows = cybos.daily_rows(SAMSUNG, probe_start, guarded_end, exchange=str(request.get("exchange", "A")), adjusted=bool(request.get("adjusted", True)))
     validate_rows(samsung_rows, allow_empty=True)
     if not samsung_rows:
-        print(f"[PASS] cybos daily no completed trading bar from={start} to={guarded_end}")
+        print(f"[PASS] cybos daily no completed trading bar from={probe_start} to={guarded_end}")
         return 0
     target_end = datetime.strptime(samsung_rows[-1]["date"], "%Y-%m-%d").date()
 
