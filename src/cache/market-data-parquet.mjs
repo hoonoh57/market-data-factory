@@ -79,25 +79,29 @@ export function partitionRevision(partition, rowCount, lastModified) {
   }));
 }
 
-export function partitionFile(spec, partition) {
+export function generationRoot(spec, status) {
+  return path.posix.join(spec.root, `generation=${sourceFingerprint(status)}`);
+}
+
+export function partitionFile(spec, partition, cacheRoot = spec.root) {
   const value = String(partition);
   if (spec.datasetId === 'korean-equity-daily') {
     const match = /^(\d{4})-(\d{2})$/.exec(value);
     if (!match) throw new Error(`invalid daily partition: ${value}`);
-    return path.posix.join(spec.root, `year=${match[1]}`, `month=${match[2]}`, 'part.parquet');
+    return path.posix.join(cacheRoot, `year=${match[1]}`, `month=${match[2]}`, 'part.parquet');
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error(`invalid minute partition: ${value}`);
-  return path.posix.join(spec.root, `trading_date=${value}`, 'part.parquet');
+  return path.posix.join(cacheRoot, `trading_date=${value}`, 'part.parquet');
 }
 
-export function cacheManifest({ spec, status, generatedAtUtc, partitions }) {
+export function cacheManifest({ spec, status, generatedAtUtc, partitions, cacheRoot = generationRoot(spec, status) }) {
   if (!Array.isArray(partitions)) throw new Error('partitions must be an array');
   const partitionMap = {};
   for (const item of [...partitions].sort((a, b) => String(a.partition).localeCompare(String(b.partition)))) {
     const key = String(item.partition);
     if (partitionMap[key]) throw new Error(`duplicate partition: ${key}`);
     partitionMap[key] = {
-      file: partitionFile(spec, key),
+      file: partitionFile(spec, key, cacheRoot),
       row_count: Number(item.row_count),
       revision: String(item.revision),
     };
@@ -107,7 +111,7 @@ export function cacheManifest({ spec, status, generatedAtUtc, partitions }) {
     dataset_id: spec.datasetId,
     cache: {
       format: 'parquet',
-      root: spec.root,
+      root: cacheRoot,
       partition_by: [...spec.partitionBy],
     },
     source: { ...status },
