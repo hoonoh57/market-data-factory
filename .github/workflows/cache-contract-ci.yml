@@ -1,0 +1,27 @@
+name: cache-contract-ci
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/cache/**'
+      - 'scripts/materialize-market-data-parquet.mjs'
+      - 'scripts/csv-to-parquet.py'
+      - 'tests/market_data_parquet_*.test.mjs'
+      - 'requirements-64bit.txt'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/cache-contract-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  cache-contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: node --test ./tests/market_data_parquet_contract.test.mjs ./tests/market_data_parquet_materializer.test.mjs
