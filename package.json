@@ -27,6 +27,7 @@
     "data:sox:update": "node ./scripts/update-sox-daily.mjs",
     "data:sox:check": "node ./scripts/check-sox-daily.mjs",
     "data:update": "npm run data:daily:update && npm run data:minute:update && npm run data:market-cap:update && npm run data:index:update",
+    "data:cache": "node ./scripts/materialize-market-data-parquet.mjs",
     "test": "node --test ./tests/*.test.mjs"
   },
   "dependencies": {
