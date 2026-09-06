@@ -8,6 +8,7 @@ import {
   CACHE_MANIFEST_SCHEMA,
   cacheManifest,
   datasetSpec,
+  generationRoot,
   partitionFile,
   partitionRevision,
   sourceFingerprint,
@@ -165,12 +166,25 @@ function runConverter({ python, dataset, input, output }) {
   }
 }
 
+async function linkOrCopy(source, target) {
+  if (path.resolve(source) === path.resolve(target)) return;
+  await fs.promises.mkdir(path.dirname(target), { recursive: true });
+  try {
+    await fs.promises.link(source, target);
+  } catch (error) {
+    if (!['EXDEV', 'EPERM', 'EACCES', 'EEXIST'].includes(error.code)) throw error;
+    if (!fs.existsSync(target)) await fs.promises.copyFile(source, target);
+  }
+}
+
 async function syncDataset(connection, { dataset, target, python }) {
   const spec = datasetSpec(dataset);
   const dataRoot = path.resolve(target);
   const manifestPath = path.join(dataRoot, 'manifest', `${spec.datasetId}.json`);
   const existing = readExistingManifest(manifestPath, spec);
   const status = await readSourceStatus(connection, spec);
+  const sourceHash = sourceFingerprint(status);
+  const cacheRoot = generationRoot(spec, status);
   const partitionStats = await readPartitionStats(connection, spec);
   const stagingRoot = path.join(ROOT, '.runtime', 'analytics-cache', dataset);
   await fs.promises.mkdir(stagingRoot, { recursive: true });
@@ -178,10 +192,15 @@ async function syncDataset(connection, { dataset, target, python }) {
   let reused = 0;
   let materialized = 0;
   for (const item of partitionStats) {
-    const relative = partitionFile(spec, item.partition);
+    const relative = partitionFile(spec, item.partition, cacheRoot);
     const output = path.join(dataRoot, ...relative.split('/'));
     const previous = existing?.partitions?.[item.partition];
-    if (previous?.revision === item.revision && previous?.file === relative && fs.existsSync(output)) {
+    const previousFile = previous?.file
+      ? path.join(dataRoot, ...String(previous.file).split('/'))
+      : null;
+
+    if (previous?.revision === item.revision && previousFile && fs.existsSync(previousFile)) {
+      await linkOrCopy(previousFile, output);
       reused += 1;
       continue;
     }
@@ -202,18 +221,19 @@ async function syncDataset(connection, { dataset, target, python }) {
   }
 
   const latestStatus = await readSourceStatus(connection, spec);
-  if (sourceFingerprint(latestStatus) !== sourceFingerprint(status)) {
+  if (sourceFingerprint(latestStatus) !== sourceHash) {
     throw new Error('source dataset changed during cache materialization');
   }
 
   const manifest = cacheManifest({
     spec,
     status,
+    cacheRoot,
     generatedAtUtc: new Date().toISOString(),
     partitions: partitionStats,
   });
   await fs.promises.mkdir(path.dirname(manifestPath), { recursive: true });
-  const tempManifest = `${manifestPath}.tmp`;
+  const tempManifest = `${manifestPath}.${process.pid}.tmp`;
   await fs.promises.writeFile(tempManifest, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
   await fs.promises.rename(tempManifest, manifestPath);
   return { manifest, reused, materialized };
@@ -244,6 +264,7 @@ async function main() {
       event: 'complete',
       dataset_id: spec.datasetId,
       source_fingerprint: result.manifest.source_fingerprint,
+      cache_root: result.manifest.cache.root,
       partitions: Object.keys(result.manifest.partitions).length,
       materialized: result.materialized,
       reused: result.reused,
