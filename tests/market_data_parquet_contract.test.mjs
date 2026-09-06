@@ -6,6 +6,7 @@ import {
   cacheManifest,
   canonicalJson,
   datasetSpec,
+  generationRoot,
   partitionFile,
   partitionRevision,
   sourceFingerprint,
@@ -40,6 +41,7 @@ test('source status revision and fingerprint are deterministic and mutation-sens
   const changed = sourceStatus(spec, { ...raw, last_modified: '2026-01-05T20:00:01' });
   assert.notEqual(one.revision, changed.revision);
   assert.notEqual(sourceFingerprint(one), sourceFingerprint(changed));
+  assert.notEqual(generationRoot(spec, one), generationRoot(spec, changed));
 });
 
 test('partition file paths are deterministic and reject malformed values', () => {
@@ -55,7 +57,7 @@ test('partition file paths are deterministic and reject malformed values', () =>
   assert.throws(() => partitionFile(datasetSpec('minute'), '2026-09'), /invalid minute partition/);
 });
 
-test('manifest matches DSL cache contract and sorts partitions', () => {
+test('manifest matches DSL cache contract and isolates immutable generation', () => {
   const spec = datasetSpec('daily');
   const status = sourceStatus(spec, {
     row_count: 20,
@@ -73,11 +75,16 @@ test('manifest matches DSL cache contract and sorts partitions', () => {
       { partition: '2026-01', row_count: 10, revision: partitionRevision('2026-01', 10, 'a') },
     ],
   });
+  const root = generationRoot(spec, status);
   assert.equal(manifest.schema, CACHE_MANIFEST_SCHEMA);
   assert.equal(manifest.cache.format, 'parquet');
+  assert.equal(manifest.cache.root, root);
   assert.equal(manifest.source_fingerprint, sourceFingerprint(status));
   assert.deepEqual(Object.keys(manifest.partitions), ['2026-01', '2026-02']);
-  assert.equal(manifest.partitions['2026-01'].file, 'parquet/daily/year=2026/month=01/part.parquet');
+  assert.equal(
+    manifest.partitions['2026-01'].file,
+    `${root}/year=2026/month=01/part.parquet`,
+  );
 });
 
 test('canonical JSON is key-order independent', () => {
